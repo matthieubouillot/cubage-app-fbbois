@@ -1,0 +1,166 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+/**
+ * ──────────────────────────────────────────────────────────────
+ * UTILISATEURS & ROLES
+ * ───────────────────────────────────────────────────────────────
+ */
+model User {
+  id        String @id @default(uuid())
+  firstName String
+  lastName  String
+  role      Role
+  email     String @unique
+  phone     String
+  password  String // hashé (bcrypt)
+
+  // Plage personnelle de numérotation (pour les bûcherons)
+  numStart Int?
+  numEnd   Int?
+
+  // Relations
+  numberingStates NumberingState[] // compteur (par chantier)
+  assignments     Assignment[] // chantiers assignés
+  saisies         Saisie[] // lignes saisies
+}
+
+/**
+ * ──────────────────────────────────────────────────────────────
+ * CHANTIERS
+ * ───────────────────────────────────────────────────────────────
+ */
+model Chantier {
+  id           String @id @default(uuid())
+  referenceLot String
+  convention   String
+  proprietaire String
+  commune      String
+  lieuDit      String
+
+  // Relations
+  essences        EssenceOnChantier[]
+  qualites        QualiteOnChantier[] // ⬅️ ajout inverse
+  assignments     Assignment[]
+  saisies         Saisie[]
+  numberingStates NumberingState[]
+}
+
+/**
+ * ──────────────────────────────────────────────────────────────
+ * ESSENCES / QUALITES / % ÉCORCE
+ * ───────────────────────────────────────────────────────────────
+ */
+model Essence {
+  id        String              @id @default(uuid())
+  name      String              @unique
+  qualites  Qualite[]
+  chantiers EssenceOnChantier[]
+  saisies   Saisie[]
+}
+
+model Qualite {
+  id                String  @id @default(uuid())
+  name              String
+  pourcentageEcorce Int
+  essenceId         String
+  essence           Essence @relation(fields: [essenceId], references: [id])
+
+  // Relations inverses
+  chantiers QualiteOnChantier[]
+
+  @@unique([name, essenceId])
+}
+
+/**
+ * ──────────────────────────────────────────────────────────────
+ * RELATIONS N↔N
+ * ───────────────────────────────────────────────────────────────
+ */
+model EssenceOnChantier {
+  id         String @id @default(uuid())
+  essenceId  String
+  chantierId String
+
+  essence  Essence  @relation(fields: [essenceId], references: [id])
+  chantier Chantier @relation(fields: [chantierId], references: [id])
+
+  @@unique([essenceId, chantierId])
+}
+
+model QualiteOnChantier {
+  id         String @id @default(uuid())
+  qualiteId  String
+  chantierId String
+
+  qualite  Qualite  @relation(fields: [qualiteId], references: [id])
+  chantier Chantier @relation(fields: [chantierId], references: [id])
+
+  @@unique([qualiteId, chantierId])
+}
+
+model Assignment {
+  id         String @id @default(uuid())
+  userId     String
+  chantierId String
+
+  user     User     @relation(fields: [userId], references: [id])
+  chantier Chantier @relation(fields: [chantierId], references: [id])
+
+  @@unique([userId, chantierId])
+}
+
+/**
+ * ──────────────────────────────────────────────────────────────
+ * ETAT DE NUMEROTATION PAR CHANTIER (compteur local)
+ * ───────────────────────────────────────────────────────────────
+ */
+model NumberingState {
+  id         String @id @default(uuid())
+  userId     String
+  chantierId String
+  nextNumber Int // prochain numéro pour (user, chantier)
+
+  user     User     @relation(fields: [userId], references: [id])
+  chantier Chantier @relation(fields: [chantierId], references: [id])
+
+  @@unique([userId, chantierId])
+}
+
+/**
+ * ──────────────────────────────────────────────────────────────
+ * SAISIES (lignes LONG / DIAM + calculs)
+ * ───────────────────────────────────────────────────────────────
+ */
+model Saisie {
+  id         String @id @default(uuid())
+  chantierId String
+  essenceId  String
+  userId     String
+
+  date       DateTime @default(now())
+  numero     Int
+  longueur   Decimal  @db.Decimal(10, 2)
+  diametre   Decimal  @db.Decimal(10, 2)
+  volumeCalc Decimal  @db.Decimal(12, 4)
+  version    Int      @default(1)
+
+  chantier Chantier @relation(fields: [chantierId], references: [id])
+  essence  Essence  @relation(fields: [essenceId], references: [id])
+  user     User     @relation(fields: [userId], references: [id])
+
+  @@index([chantierId])
+  @@index([userId])
+  @@index([essenceId])
+}
+
+enum Role {
+  SUPERVISEUR
+  BUCHERON
+}
