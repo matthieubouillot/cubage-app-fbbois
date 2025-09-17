@@ -1,8 +1,12 @@
 import type { Request, Response } from "express";
 import { z } from "zod";
-import { createChantierService, listChantiersService } from "./chantiers.service";
+import {
+  createChantierService,
+  listChantiersService,
+  getChantierByIdService,
+} from "./chantiers.service";
 
-// ✅ Schéma d'entrée : pas d'essenceIds ici
+// ✅ Schéma d'entrée : PAS d'essenceIds (elles sont déduites des qualiteIds)
 const CreateChantierSchema = z.object({
   referenceLot: z.string().min(1),
   convention: z.string().min(1),
@@ -37,5 +41,16 @@ export async function listChantiers(req: Request, res: Response) {
     return res.json(data);
   } catch (e: any) {
     return res.status(500).json({ error: e.message || "Erreur lors de la liste des chantiers" });
+  }
+}
+
+export async function getChantierById(req: Request, res: Response) {
+  const auth = (req as any).user as { userId: string; role: "BUCHERON" | "SUPERVISEUR" };
+  try {
+    const data = await getChantierByIdService(auth, req.params.id);
+    if (!data) return res.status(404).json({ error: "Chantier introuvable" });
+    return res.json(data);
+  } catch (e: any) {
+    return res.status(500).json({ error: e.message || "Erreur lors de la récupération du chantier" });
   }
 }

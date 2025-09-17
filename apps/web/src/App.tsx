@@ -7,6 +7,7 @@ import MesChantiers from "./pages/chantiers/MesChantiers";
 import Topbar from "./components/Topbar";
 import { ProtectedRoute, RoleRoute } from "./features/auth/ProtectedRoute";
 import CreateChantier from "./pages/chantiers/CreateChantier";
+import ChantierDetail from "./pages/chantiers/ChantierDetail";
 
 export default function App() {
   return (
@@ -23,11 +24,13 @@ export default function App() {
           <Route element={<RoleRoute allow={["SUPERVISEUR"]} />}>
             <Route path="/chantiers" element={<ChantiersList />} />
             <Route path="/chantiers/nouveau" element={<CreateChantier />} />
+            <Route path="/chantiers/:id" element={<ChantierDetail />} />
           </Route>
 
           {/* Rôle: BUCHERON */}
           <Route element={<RoleRoute allow={["BUCHERON"]} />}>
             <Route path="/mes-chantiers" element={<MesChantiers />} />
+            <Route path="/chantiers/:id" element={<ChantierDetail />} />
           </Route>
         </Route>
 

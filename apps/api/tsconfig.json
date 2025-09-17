@@ -1,17 +1,15 @@
 {
+  "extends": "../../tsconfig.base.json",
   "compilerOptions": {
-    "target": "ES2020",
     "module": "CommonJS",
     "moduleResolution": "node",
     "esModuleInterop": true,
-    "verbatimModuleSyntax": false,
-    "strict": true,
-    "skipLibCheck": true,
-    "forceConsistentCasingInFileNames": true,
     "resolveJsonModule": true,
     "outDir": "dist",
-    "types": ["node", "express"]
+    "rootDir": "src",
+    "lib": ["ES2020"],
+    "types": ["node"]
   },
-  "include": ["src/**/*.ts", "prisma/**/*.ts"],
-  "exclude": ["node_modules", "dist", "prisma/seed.ts"]
+  "include": ["src", "types"],
+  "exclude": ["dist", "node_modules"]
 }

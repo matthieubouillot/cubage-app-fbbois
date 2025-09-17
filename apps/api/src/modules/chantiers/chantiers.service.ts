@@ -38,7 +38,7 @@ export async function createChantierService(input: CreateInput) {
   }
 
   // 3) Déduire les essences uniques à partir des qualités
-  const essenceIds = Array.from(new Set(qualites.map(q => q.essenceId)));
+  const essenceIds = Array.from(new Set(qualites.map((q) => q.essenceId)));
 
   // 4) Transaction : créer chantier + liaisons
   return prisma.$transaction(async (tx) => {
@@ -50,43 +50,76 @@ export async function createChantierService(input: CreateInput) {
         commune: input.commune,
         lieuDit: input.lieuDit,
         // essences activées (dérivées des qualités)
-        essences: { create: essenceIds.map(essenceId => ({ essenceId })) },
+        essences: { create: essenceIds.map((essenceId) => ({ essenceId })) },
         // affectations bûcherons
-        assignments: { create: input.bucheronIds.map(userId => ({ userId })) },
+        assignments: {
+          create: input.bucheronIds.map((userId) => ({ userId })),
+        },
       },
       select: {
-        id: true, referenceLot: true, convention: true, proprietaire: true, commune: true, lieuDit: true,
+        id: true,
+        referenceLot: true,
+        convention: true,
+        proprietaire: true,
+        commune: true,
+        lieuDit: true,
       },
     });
 
-    // qualités activées (jonction)
+    // Qualités activées (jonction)
     await tx.qualiteOnChantier.createMany({
-      data: input.qualiteIds.map(qualiteId => ({ qualiteId, chantierId: chantier.id })),
+      data: input.qualiteIds.map((qualiteId) => ({
+        qualiteId,
+        chantierId: chantier.id,
+      })),
       skipDuplicates: true,
     });
 
-    // retour détaillé (avec essences & qualités activées)
+    // Retour détaillé
     const full = await tx.chantier.findUniqueOrThrow({
       where: { id: chantier.id },
       select: {
-        id: true, referenceLot: true, convention: true, proprietaire: true, commune: true, lieuDit: true,
+        id: true,
+        referenceLot: true,
+        convention: true,
+        proprietaire: true,
+        commune: true,
+        lieuDit: true,
         essences: { select: { essence: { select: { id: true, name: true } } } },
         qualites: {
           select: {
             qualite: {
-              select: { id: true, name: true, pourcentageEcorce: true, essence: { select: { id: true, name: true } } },
+              select: {
+                id: true,
+                name: true,
+                pourcentageEcorce: true,
+                essence: { select: { id: true, name: true } },
+              },
             },
           },
         },
-        assignments: { select: { user: { select: { id: true, firstName: true, lastName: true } } } },
+        assignments: {
+          select: {
+            user: {
+              select: { id: true, firstName: true, lastName: true, role: true },
+            },
+          },
+        },
       },
     });
 
     return {
-      ...full,
-      essences: full.essences.map(e => e.essence),
-      qualites: full.qualites.map(q => ({ ...q.qualite })),
-      bucherons: full.assignments.map(a => a.user),
+      id: full.id,
+      referenceLot: full.referenceLot,
+      convention: full.convention,
+      proprietaire: full.proprietaire,
+      commune: full.commune,
+      lieuDit: full.lieuDit,
+      essences: full.essences.map((e) => e.essence),
+      qualites: full.qualites.map((q) => q.qualite),
+      bucherons: full.assignments
+        .map((a) => a.user)
+        .filter((u) => u.role === "BUCHERON"),
     };
   });
 }
@@ -96,7 +129,10 @@ export async function createChantierService(input: CreateInput) {
  * - SUPERVISEUR : tous
  * - BUCHERON    : seulement ceux auxquels il est assigné
  */
-export async function listChantiersService(user: { userId: string; role: "BUCHERON" | "SUPERVISEUR" }) {
+export async function listChantiersService(user: {
+  userId: string;
+  role: "BUCHERON" | "SUPERVISEUR";
+}) {
   const where =
     user.role === "SUPERVISEUR"
       ? {}
@@ -106,19 +142,90 @@ export async function listChantiersService(user: { userId: string; role: "BUCHER
     where,
     orderBy: { referenceLot: "asc" },
     select: {
-      id: true, referenceLot: true, proprietaire: true, commune: true, lieuDit: true,
+      id: true,
+      referenceLot: true,
+      proprietaire: true,
+      commune: true,
+      lieuDit: true,
       essences: { select: { essence: { select: { id: true, name: true } } } },
-      qualites: { select: { qualite: { select: { id: true, name: true, essence: { select: { id: true } } } } } },
+      qualites: {
+        select: {
+          qualite: {
+            select: { id: true, name: true, essence: { select: { id: true } } },
+          },
+        },
+      },
     },
   });
 
-  return rows.map(r => ({
+  return rows.map((r) => ({
     id: r.id,
     referenceLot: r.referenceLot,
     proprietaire: r.proprietaire,
     commune: r.commune,
     lieuDit: r.lieuDit,
-    essences: r.essences.map(e => e.essence),
-    qualites: r.qualites.map(q => q.qualite),
+    essences: r.essences.map((e) => e.essence),
+    qualites: r.qualites.map((q) => q.qualite),
   }));
+}
+
+/**
+ * Détail d'un chantier (contrôle d'accès par rôle/assignment)
+ */
+export async function getChantierByIdService(
+  user: { userId: string; role: "BUCHERON" | "SUPERVISEUR" },
+  id: string,
+) {
+  const where =
+    user.role === "SUPERVISEUR"
+      ? { id }
+      : { id, assignments: { some: { userId: user.userId } } };
+
+  const r = await prisma.chantier.findFirst({
+    where,
+    select: {
+      id: true,
+      referenceLot: true,
+      convention: true,
+      proprietaire: true,
+      commune: true,
+      lieuDit: true,
+      essences: { select: { essence: { select: { id: true, name: true } } } },
+      qualites: {
+        select: {
+          qualite: {
+            select: {
+              id: true,
+              name: true,
+              pourcentageEcorce: true,
+              essence: { select: { id: true, name: true } },
+            },
+          },
+        },
+      },
+      assignments: {
+        select: {
+          user: {
+            select: { id: true, firstName: true, lastName: true, role: true },
+          },
+        },
+      },
+    },
+  });
+
+  if (!r) return null;
+
+  return {
+    id: r.id,
+    referenceLot: r.referenceLot,
+    convention: r.convention,
+    proprietaire: r.proprietaire,
+    commune: r.commune,
+    lieuDit: r.lieuDit,
+    essences: r.essences.map((e) => e.essence),
+    qualites: r.qualites.map((q) => q.qualite),
+    bucherons: r.assignments
+      .map((a) => a.user)
+      .filter((u) => u.role === "BUCHERON"),
+  };
 }
