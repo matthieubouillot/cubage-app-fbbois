@@ -11,10 +11,19 @@ const CreateChantierSchema = z.object({
   referenceLot: z.string().min(1),
   convention: z.string().min(1),
   proprietaire: z.string().min(1),
+    proprietaireFirstName: z.string().min(1),   
   commune: z.string().min(1),
   lieuDit: z.string().min(1),
   qualiteIds: z.array(z.string().uuid()).min(1, "Choisis au moins une qualité"),
-  bucheronIds: z.array(z.string().uuid()).min(1, "Choisis au moins un bûcheron"),
+  bucheronIds: z
+    .array(z.string().uuid())
+    .min(1, "Choisis au moins un bûcheron"),
+  section: z
+    .string()
+    .regex(/^[A-Za-z]{1,2}$/)
+    .optional()
+    .nullable(),
+  parcel: z.string().regex(/^\d+$/).optional().nullable(),
 });
 
 export async function createChantier(req: Request, res: Response) {
@@ -30,27 +39,41 @@ export async function createChantier(req: Request, res: Response) {
     const chantier = await createChantierService(parse.data);
     return res.status(201).json(chantier);
   } catch (e: any) {
-    return res.status(400).json({ error: e.message || "Impossible de créer le chantier" });
+    return res
+      .status(400)
+      .json({ error: e.message || "Impossible de créer le chantier" });
   }
 }
 
 export async function listChantiers(req: Request, res: Response) {
-  const auth = (req as any).user as { userId: string; role: "BUCHERON" | "SUPERVISEUR" };
+  const auth = (req as any).user as {
+    userId: string;
+    role: "BUCHERON" | "SUPERVISEUR";
+  };
   try {
     const data = await listChantiersService(auth);
     return res.json(data);
   } catch (e: any) {
-    return res.status(500).json({ error: e.message || "Erreur lors de la liste des chantiers" });
+    return res
+      .status(500)
+      .json({ error: e.message || "Erreur lors de la liste des chantiers" });
   }
 }
 
 export async function getChantierById(req: Request, res: Response) {
-  const auth = (req as any).user as { userId: string; role: "BUCHERON" | "SUPERVISEUR" };
+  const auth = (req as any).user as {
+    userId: string;
+    role: "BUCHERON" | "SUPERVISEUR";
+  };
   try {
     const data = await getChantierByIdService(auth, req.params.id);
     if (!data) return res.status(404).json({ error: "Chantier introuvable" });
     return res.json(data);
   } catch (e: any) {
-    return res.status(500).json({ error: e.message || "Erreur lors de la récupération du chantier" });
+    return res
+      .status(500)
+      .json({
+        error: e.message || "Erreur lors de la récupération du chantier",
+      });
   }
 }

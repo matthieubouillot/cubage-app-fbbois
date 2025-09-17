@@ -4,7 +4,7 @@ import Home from "./pages/common/Home";
 import NotFound from "./pages/common/NotFound";
 import ChantiersList from "./pages/chantiers/ChantiersList";
 import MesChantiers from "./pages/chantiers/MesChantiers";
-import Topbar from "./components/Topbar";
+import Navbar from "./components/Navbar";
 import { ProtectedRoute, RoleRoute } from "./features/auth/ProtectedRoute";
 import CreateChantier from "./pages/chantiers/CreateChantier";
 import ChantierDetail from "./pages/chantiers/ChantierDetail";
@@ -16,7 +16,7 @@ export default function App() {
         {/* Public */}
         <Route path="/login" element={<LoginPage />} />
 
-        {/* Protégé (affiche Topbar seulement une fois connecté) */}
+        {/* Protégé (affiche Navbar seulement une fois connecté) */}
         <Route element={<ProtectedLayout />}>
           <Route path="/" element={<Home />} />
 
@@ -47,7 +47,7 @@ import { Outlet } from "react-router-dom";
 function ProtectedLayout() {
   return (
     <ProtectedRoute>
-      <Topbar />
+      <Navbar />
       <div className="max-w-5xl mx-auto">
         <Outlet />
       </div>

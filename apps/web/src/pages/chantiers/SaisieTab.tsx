@@ -1,18 +1,155 @@
-import { useEffect, useState } from "react";
+// apps/web/src/pages/chantiers/SaisieTab.tsx
+import React, { useEffect, useRef, useState, forwardRef } from "react";
 import {
-  createSaisie,
   listSaisies,
+  createSaisie,
+  updateSaisie,
+  deleteSaisie,
   type SaisieRow,
-  getSaisiesStats,
-  type SaisieStats,
 } from "../../features/saisies/api";
+import { twMerge } from "tailwind-merge";
 
-const fmt3 = (n: number) =>
-  n.toLocaleString("fr-FR", {
-    minimumFractionDigits: 3,
-    maximumFractionDigits: 3,
-  });
+/* ───────────────── helpers ───────────────── */
+function fmt3(v?: number | null) {
+  return v != null
+    ? Number(v).toLocaleString("fr-FR", {
+        minimumFractionDigits: 3,
+        maximumFractionDigits: 3,
+      })
+    : "";
+}
+const onlyNum = (s: string) => s.replace(/[^\d.,]/g, "");
 
+/* ───────────────── UI atoms ───────────────── */
+const BtnPrimary = ({
+  className = "",
+  ...rest
+}: React.ButtonHTMLAttributes<HTMLButtonElement>) => (
+  <button
+    className={twMerge(
+      "inline-flex items-center justify-center rounded-full bg-black text-white px-4 py-2 text-sm disabled:opacity-60",
+      className,
+    )}
+    {...rest}
+  />
+);
+
+const BtnDanger = ({
+  className = "",
+  ...rest
+}: React.ButtonHTMLAttributes<HTMLButtonElement>) => (
+  <button
+    className={twMerge(
+      "inline-flex items-center justify-center rounded-full border border-red-600 text-red-700 px-4 py-2 text-sm hover:bg-red-50",
+      className,
+    )}
+    {...rest}
+  />
+);
+
+const LabeledInput = forwardRef<
+  HTMLInputElement,
+  {
+    label: string;
+    value: string;
+    onChange: (v: string) => void;
+    placeholder?: string;
+    inputMode?: React.HTMLAttributes<HTMLInputElement>["inputMode"];
+    autoFocus?: boolean;
+  }
+>(
+  (
+    { label, value, onChange, placeholder, inputMode, autoFocus, ...rest },
+    ref,
+  ) => {
+    return (
+      <label className="block">
+        <div className="text-xs text-gray-600 mb-1">{label}</div>
+        <input
+          ref={ref}
+          className="w-full border rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-black/20"
+          value={value}
+          onChange={(e) => onChange(e.target.value)}
+          placeholder={placeholder}
+          inputMode={inputMode}
+          autoFocus={autoFocus}
+          {...rest}
+        />
+      </label>
+    );
+  },
+);
+LabeledInput.displayName = "LabeledInput";
+
+function Th(props: React.ThHTMLAttributes<HTMLTableHeaderCellElement>) {
+  const { className = "", ...rest } = props;
+  return (
+    <th
+      className={twMerge(
+        "px-3 py-2 text-left whitespace-nowrap text-xs font-medium text-gray-600 uppercase tracking-wide border-b border-gray-200",
+        className,
+      )}
+      {...rest}
+    />
+  );
+}
+function Td(props: React.TdHTMLAttributes<HTMLTableCellElement>) {
+  const { className = "", ...rest } = props;
+  return (
+    <td className={twMerge("px-3 py-2 align-middle", className)} {...rest} />
+  );
+}
+
+/* ───────────────── Modal centré (mobile + desktop) ───────────────── */
+function Modal({
+  open,
+  onClose,
+  title,
+  children,
+  onSubmit,
+  submitLabel = "Enregistrer",
+  maxWidth = "max-w-md",
+}: {
+  open: boolean;
+  onClose: () => void;
+  title: string;
+  children: React.ReactNode;
+  onSubmit: () => void;
+  submitLabel?: string;
+  maxWidth?: "max-w-sm" | "max-w-md" | "max-w-lg";
+}) {
+  if (!open) return null;
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+      <div className="absolute inset-0 bg-black/40" onClick={onClose} />
+      <div
+        className={twMerge(
+          "relative w-full bg-white rounded-2xl shadow-2xl",
+          maxWidth,
+        )}
+      >
+        <div className="p-4 border-b flex items-center justify-between">
+          <h3 className="text-base font-semibold">{title}</h3>
+          <button onClick={onClose} className="text-gray-500 hover:text-black">
+            ✕
+          </button>
+        </div>
+        <div className="p-4 space-y-4">{children}</div>
+        <div className="p-4 border-t flex gap-3 justify-end">
+          <button
+            onClick={onClose}
+            className="px-4 py-2 rounded-full bg-gray-200"
+          >
+            Annuler
+          </button>
+          <BtnPrimary onClick={onSubmit}>{submitLabel}</BtnPrimary>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* ───────────────── Main ───────────────── */
 export default function SaisieTab({
   chantierId,
   qualiteId,
@@ -21,209 +158,384 @@ export default function SaisieTab({
   qualiteId: string;
 }) {
   const [rows, setRows] = useState<SaisieRow[] | null>(null);
-  const [stats, setStats] = useState<SaisieStats | null>(null);
   const [err, setErr] = useState<string | null>(null);
-  const [saving, setSaving] = useState(false);
-  const [form, setForm] = useState({
+
+  // modals
+  const [showAdd, setShowAdd] = useState(false);
+  const [showEdit, setShowEdit] = useState<null | SaisieRow>(null);
+
+  // forms
+  const [addForm, setAddForm] = useState({
+    longueur: "",
+    diametre: "",
+    annotation: "",
+  });
+  const [editForm, setEditForm] = useState({
     longueur: "",
     diametre: "",
     annotation: "",
   });
 
-  async function refreshAll() {
-    const [r, s] = await Promise.all([
-      listSaisies(chantierId, qualiteId),
-      getSaisiesStats(chantierId, qualiteId),
-    ]);
-    setRows(r);
-    setStats(s);
+  const addLongRef = useRef<HTMLInputElement>(null);
+
+  async function refresh() {
+    const data = await listSaisies(chantierId, qualiteId);
+    setRows(data);
   }
 
   useEffect(() => {
     setRows(null);
-    setStats(null);
     setErr(null);
-    refreshAll().catch((e) => setErr(e.message || "Erreur de chargement"));
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    refresh().catch((e) => setErr(e.message || "Erreur de chargement"));
   }, [chantierId, qualiteId]);
 
-  const submit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setErr(null);
-    setSaving(true);
+  /* add */
+  function openAdd() {
+    setAddForm({ longueur: "", diametre: "", annotation: "" });
+    setShowAdd(true);
+    setTimeout(() => addLongRef.current?.focus(), 50);
+  }
+  async function submitAdd() {
     try {
-      const longueur = parseFloat(form.longueur.replace(",", "."));
-      const diametre = parseFloat(form.diametre.replace(",", "."));
-      if (isNaN(longueur) || isNaN(diametre) || longueur <= 0 || diametre <= 0)
+      const longueur = parseFloat(onlyNum(addForm.longueur).replace(",", "."));
+      const diametre = parseFloat(onlyNum(addForm.diametre).replace(",", "."));
+      if (
+        !isFinite(longueur) ||
+        !isFinite(diametre) ||
+        longueur <= 0 ||
+        diametre <= 0
+      ) {
         throw new Error(
           "Longueur et diamètre doivent être des nombres positifs.",
         );
-
+      }
       await createSaisie({
         chantierId,
         qualiteId,
         longueur,
         diametre,
-        annotation: form.annotation?.trim() || undefined,
+        annotation: addForm.annotation.trim() || undefined,
       });
-      setForm({ longueur: "", diametre: "", annotation: "" });
-      await refreshAll();
+      setShowAdd(false);
+      await refresh();
     } catch (e: any) {
-      setErr(e.message || "Erreur lors de l'enregistrement");
-    } finally {
-      setSaving(false);
+      setErr(e.message || "Erreur lors de l’ajout");
     }
-  };
+  }
+
+  /* edit */
+  function openEdit(row: SaisieRow) {
+    setShowEdit(row);
+    setEditForm({
+      longueur: String(row.longueur).replace(".", ","),
+      diametre: String(row.diametre).replace(".", ","),
+      annotation: row.annotation || "",
+    });
+  }
+  async function submitEdit() {
+    if (!showEdit) return;
+    try {
+      const longueur = parseFloat(onlyNum(editForm.longueur).replace(",", "."));
+      const diametre = parseFloat(onlyNum(editForm.diametre).replace(",", "."));
+      if (
+        !isFinite(longueur) ||
+        !isFinite(diametre) ||
+        longueur <= 0 ||
+        diametre <= 0
+      ) {
+        throw new Error(
+          "Longueur et diamètre doivent être des nombres positifs.",
+        );
+      }
+      await updateSaisie(showEdit.id, {
+        longueur,
+        diametre,
+        annotation: editForm.annotation.trim() || undefined,
+      });
+      setShowEdit(null);
+      await refresh();
+    } catch (e: any) {
+      setErr(e.message || "Erreur lors de la modification");
+    }
+  }
+
+  /* delete */
+  async function remove(id: string) {
+    try {
+      if (!window.confirm("Supprimer cette ligne ?")) return;
+      await deleteSaisie(id);
+      await refresh();
+    } catch (e: any) {
+      setErr(e.message || "Erreur lors de la suppression");
+    }
+  }
 
   return (
-    <div className="space-y-4">
-      {/* ===== Synthèse ===== */}
-      {stats && (
-        <div className="overflow-auto">
-          <table className="min-w-[560px] border border-gray-300 bg-white">
-            <thead className="bg-gray-50">
-              <tr>
-                <Th></Th>
-                <Th>vol. &lt; V1</Th>
-                <Th>V1 ≤ vol. &lt; V2</Th>
-                <Th>vol. ≥ V2</Th>
-                <Th className="text-right">Total</Th>
-              </tr>
-            </thead>
-            <tbody>
-              <tr>
-                <Td className="font-medium">V. total</Td>
-                <Td>{fmt3(stats.columns.ltV1.sum)}</Td>
-                <Td>{fmt3(stats.columns.between.sum)}</Td>
-                <Td>{fmt3(stats.columns.geV2.sum)}</Td>
-                <Td className="text-right">{fmt3(stats.total.sum)}&nbsp;M3</Td>
-              </tr>
-              <tr>
-                <Td className="font-medium">Nb.</Td>
-                <Td>{stats.columns.ltV1.count}</Td>
-                <Td>{stats.columns.between.count}</Td>
-                <Td>{stats.columns.geV2.count}</Td>
-                <Td className="text-right">{stats.total.count}</Td>
-              </tr>
-              <tr>
-                <Td className="font-medium">V. moy</Td>
-                <Td>{fmt3(stats.columns.ltV1.avg)}</Td>
-                <Td>{fmt3(stats.columns.between.avg)}</Td>
-                <Td>{fmt3(stats.columns.geV2.avg)}</Td>
-                <Td className="text-right">{fmt3(stats.total.avg)}&nbsp;M3</Td>
-              </tr>
-            </tbody>
-          </table>
-        </div>
-      )}
+    <div className="w-full md:w-[850px] mx-auto space-y-6 relative">
+      {/* action bar desktop */}
+      <div className="hidden md:flex justify-center">
+        <BtnPrimary onClick={openAdd}>Ajouter une saisie</BtnPrimary>
+      </div>
 
-      {/* ===== Formulaire saisie ===== */}
-      <form
-        onSubmit={submit}
-        className="bg-white border rounded-xl p-4 grid gap-3 sm:grid-cols-6"
+      {/* bouton flottant mobile */}
+      <BtnPrimary
+        onClick={openAdd}
+        className="md:hidden fixed bottom-20 right-6 z-40 w-14 h-14 rounded-full text-2xl p-0"
+        aria-label="Ajouter"
       >
-        <div className="sm:col-span-2">
-          <label className="text-xs text-gray-500">LONG. (m)</label>
-          <input
-            className="w-full border rounded-lg px-3 py-2"
-            inputMode="decimal"
-            placeholder="ex: 7,5"
-            value={form.longueur}
-            onChange={(e) =>
-              setForm((f) => ({ ...f, longueur: e.target.value }))
-            }
-          />
-        </div>
-        <div className="sm:col-span-2">
-          <label className="text-xs text-gray-500">DIAM (cm)</label>
-          <input
-            className="w-full border rounded-lg px-3 py-2"
-            inputMode="decimal"
-            placeholder="ex: 22"
-            value={form.diametre}
-            onChange={(e) =>
-              setForm((f) => ({ ...f, diametre: e.target.value }))
-            }
-          />
-        </div>
-        <div className="sm:col-span-2">
-          <label className="text-xs text-gray-500">Annotation</label>
-          <input
-            className="w-full border rounded-lg px-3 py-2"
-            placeholder="Optionnel"
-            value={form.annotation}
-            onChange={(e) =>
-              setForm((f) => ({ ...f, annotation: e.target.value }))
-            }
-          />
-        </div>
-        <div className="sm:col-span-6">
-          <button
-            className="rounded-lg bg-black text-white px-4 py-2 w-full sm:w-auto"
-            disabled={saving}
-          >
-            {saving ? "Enregistrement..." : "Ajouter"}
-          </button>
-          {err && <span className="ml-3 text-sm text-red-600">{err}</span>}
-        </div>
-      </form>
+        +
+      </BtnPrimary>
 
-      {/* ===== Tableau des lignes ===== */}
-      <div className="bg-white border rounded-xl overflow-x-auto">
-        <table className="w-full min-w-[860px] text-sm">
-          <thead>
+      {/* tableau desktop */}
+      <div className="hidden md:block mx-auto bg-white border rounded-xl overflow-x-auto shadow-sm">
+        <table className="w-full min-w-[820px] text-sm">
+          <thead className="bg-gray-50 sticky top-0 z-10">
             <tr>
-              <Th>N°</Th>
-              <Th>LONG.</Th>
-              <Th>DIAM</Th>
-              <Th>vol. &lt; V1</Th>
-              <Th>V1 ≤ vol. &lt; V2</Th>
-              <Th>vol. ≥ V2</Th>
+              <Th className="text-center">N°</Th>
+              <Th className="text-center">LONG.</Th>
+              <Th className="text-center">DIAM</Th>
+              <Th className="text-right">vol. &lt; V1</Th>
+              <Th className="text-right">V1 ≤ vol. &lt; V2</Th>
+              <Th className="text-right">vol. ≥ V2</Th>
               <Th>Annotation</Th>
+              <Th className="w-[160px] text-center">Actions</Th>
             </tr>
           </thead>
-          <tbody className="[&>tr:nth-child(odd)]:bg-gray-50">
-            {/* ... tes lignes */}
+          <tbody className="[&>tr:nth-child(odd)]:bg-gray-50/60">
+            {!rows && (
+              <tr>
+                <Td colSpan={8} className="text-center py-4 text-gray-600">
+                  Chargement…
+                </Td>
+              </tr>
+            )}
+            {rows && rows.length === 0 && (
+              <tr>
+                <Td colSpan={8} className="text-center py-4 text-gray-600">
+                  Aucune saisie.
+                </Td>
+              </tr>
+            )}
+            {rows?.map((r) => (
+              <tr key={r.id} className="border-b border-gray-100">
+                <Td className="text-center tabular-nums">{r.numero}</Td>
+                <Td className="text-center tabular-nums">
+                  {Number(r.longueur).toLocaleString("fr-FR")}
+                </Td>
+                <Td className="text-center tabular-nums">
+                  {Number(r.diametre).toLocaleString("fr-FR")}
+                </Td>
+                <Td className="text-right tabular-nums pr-3">
+                  {fmt3(r.volLtV1)}
+                </Td>
+                <Td className="text-right tabular-nums pr-3">
+                  {fmt3(r.volBetweenV1V2)}
+                </Td>
+                <Td className="text-right tabular-nums pr-3">
+                  {fmt3(r.volGeV2)}
+                </Td>
+                <Td className="max-w-[320px]">
+                  <span className="truncate block" title={r.annotation || ""}>
+                    {r.annotation}
+                  </span>
+                </Td>
+                <Td className="text-center">
+                  <div className="flex items-center justify-center gap-2">
+                    <BtnPrimary
+                      className="px-3 py-1.5 text-xs"
+                      onClick={() => openEdit(r)}
+                    >
+                      Éditer
+                    </BtnPrimary>
+                    <BtnDanger
+                      className="px-3 py-1.5 text-xs"
+                      onClick={() => remove(r.id)}
+                    >
+                      Suppr.
+                    </BtnDanger>
+                  </div>
+                </Td>
+              </tr>
+            ))}
           </tbody>
         </table>
       </div>
+
+      {/* cartes mobile */}
+      <div className="md:hidden space-y-3">
+        {!rows && (
+          <div className="text-center py-3 text-gray-600 bg-white border rounded-xl">
+            Chargement…
+          </div>
+        )}
+        {rows && rows.length === 0 && (
+          <div className="text-center py-3 text-gray-600 bg-white border rounded-xl">
+            Aucune saisie.
+          </div>
+        )}
+        {rows?.map((r) => (
+          <div key={r.id} className="bg-white border rounded-xl p-3 shadow-sm">
+            <div className="flex items-center justify-between">
+              <div className="text-sm text-gray-500">N° {r.numero}</div>
+              <div className="flex gap-2">
+                <BtnPrimary
+                  className="px-3 py-1.5 text-xs"
+                  onClick={() => openEdit(r)}
+                >
+                  Éditer
+                </BtnPrimary>
+                <BtnDanger
+                  className="px-3 py-1.5 text-xs"
+                  onClick={() => remove(r.id)}
+                >
+                  Suppr.
+                </BtnDanger>
+              </div>
+            </div>
+
+            {/* LONG + DIAM */}
+            <div className="mt-2 grid grid-cols-2 gap-2 text-sm text-center">
+              <Info
+                label="LONG."
+                value={Number(r.longueur).toLocaleString("fr-FR")}
+              />
+              <Info
+                label="DIAM."
+                value={Number(r.diametre).toLocaleString("fr-FR")}
+              />
+            </div>
+
+            {/* V1 strip: 3 colonnes sur la même ligne */}
+            <div className="mt-2 grid grid-cols-3 gap-2 text-sm">
+              <Info
+                label="< V1"
+                value={fmt3(r.volLtV1)}
+                className="text-center"
+              />
+              <Info
+                label="V1–V2"
+                value={fmt3(r.volBetweenV1V2)}
+                className="text-center"
+              />
+              <Info
+                label="≥ V2"
+                value={fmt3(r.volGeV2)}
+                className="text-center"
+              />
+            </div>
+
+            {/* Annotation en bas */}
+            <div className="mt-2">
+              <Info
+                label="Annotation"
+                value={r.annotation || "—"}
+                className="w-full"
+              />
+            </div>
+          </div>
+        ))}
+      </div>
+
+      {err && <div className="text-center text-sm text-red-600">{err}</div>}
+
+      {/* Modal ajouter */}
+      <Modal
+        open={showAdd}
+        onClose={() => setShowAdd(false)}
+        title="Ajouter une saisie"
+        onSubmit={submitAdd}
+        submitLabel="Ajouter"
+        maxWidth="max-w-md"
+      >
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <LabeledInput
+            ref={addLongRef}
+            label="LONG. (m)"
+            value={addForm.longueur}
+            onChange={(v) =>
+              setAddForm((s) => ({ ...s, longueur: onlyNum(v) }))
+            }
+            placeholder="ex: 6,5"
+            inputMode="decimal"
+            autoFocus
+          />
+          <LabeledInput
+            label="DIAM. (cm)"
+            value={addForm.diametre}
+            onChange={(v) =>
+              setAddForm((s) => ({ ...s, diametre: onlyNum(v) }))
+            }
+            placeholder="ex: 22"
+            inputMode="decimal"
+          />
+          <div className="sm:col-span-2">
+            <LabeledInput
+              label="Annotation"
+              value={addForm.annotation}
+              onChange={(v) => setAddForm((s) => ({ ...s, annotation: v }))}
+              placeholder="Optionnel"
+            />
+          </div>
+        </div>
+      </Modal>
+
+      {/* Modal éditer */}
+      <Modal
+        open={!!showEdit}
+        onClose={() => setShowEdit(null)}
+        title={`Modifier N° ${showEdit?.numero ?? ""}`}
+        onSubmit={submitEdit}
+        maxWidth="max-w-md"
+      >
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <LabeledInput
+            label="LONG. (m)"
+            value={editForm.longueur}
+            onChange={(v) =>
+              setEditForm((s) => ({ ...s, longueur: onlyNum(v) }))
+            }
+            placeholder="ex: 6,5"
+            inputMode="decimal"
+          />
+          <LabeledInput
+            label="DIAM. (cm)"
+            value={editForm.diametre}
+            onChange={(v) =>
+              setEditForm((s) => ({ ...s, diametre: onlyNum(v) }))
+            }
+            placeholder="ex: 22"
+            inputMode="decimal"
+          />
+          <div className="sm:col-span-2">
+            <LabeledInput
+              label="Annotation"
+              value={editForm.annotation}
+              onChange={(v) => setEditForm((s) => ({ ...s, annotation: v }))}
+              placeholder="Optionnel"
+            />
+          </div>
+        </div>
+      </Modal>
     </div>
   );
 }
 
-function Input({
+/* petits blocs d’info */
+function Info({
   label,
   value,
-  onChange,
+  className = "",
 }: {
   label: string;
   value: string;
-  onChange: (v: string) => void;
+  className?: string;
 }) {
   return (
-    <label className="block">
-      <div className="text-xs text-gray-500 mb-1">{label}</div>
-      <input
-        className="w-full border rounded px-3 py-2"
-        value={value}
-        onChange={(e) => onChange(e.target.value)}
-      />
-    </label>
+    <div className={twMerge("bg-gray-50 rounded-lg px-3 py-2", className)}>
+      <div className="text-[11px] uppercase tracking-wide text-gray-500">
+        {label}
+      </div>
+      <div className="font-medium">{value || "—"}</div>
+    </div>
   );
-}
-
-export function Th(props: React.ThHTMLAttributes<HTMLTableHeaderCellElement>) {
-  const { className = "", ...rest } = props;
-  return (
-    <th
-      className={`sticky top-0 z-10 bg-gray-50 text-xs font-medium text-gray-600 uppercase tracking-wide
-                  px-3 py-2 text-left whitespace-nowrap ${className}`}
-      {...rest}
-    />
-  );
-}
-
-export function Td(props: React.TdHTMLAttributes<HTMLTableCellElement>) {
-  const { className = "", ...rest } = props;
-  return <td className={`px-3 py-2 align-middle ${className}`} {...rest} />;
 }

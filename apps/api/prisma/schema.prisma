@@ -37,16 +37,18 @@ model User {
  * ───────────────────────────────────────────────────────────────
  */
 model Chantier {
-  id           String @id @default(uuid())
-  referenceLot String
-  convention   String
-  proprietaire String
-  commune      String
-  lieuDit      String
+  id                    String  @id @default(uuid())
+  referenceLot          String
+  proprietaire          String
+  proprietaireFirstName String
+  commune               String
+  lieuDit               String
+  convention            String
+  section               String? @db.VarChar(2)
+  parcel                String?
 
-  // Relations
   essences        EssenceOnChantier[]
-  qualites        QualiteOnChantier[] // ⬅️ ajout inverse
+  qualites        QualiteOnChantier[]
   assignments     Assignment[]
   saisies         Saisie[]
   numberingStates NumberingState[]
@@ -73,8 +75,9 @@ model Qualite {
   essence           Essence @relation(fields: [essenceId], references: [id])
 
   // Relations inverses
-  chantiers QualiteOnChantier[]
-  saisies   Saisie[]
+  chantiers       QualiteOnChantier[]
+  saisies         Saisie[]
+  numberingStates NumberingState[]
 
   @@unique([name, essenceId])
 }
@@ -96,13 +99,13 @@ model EssenceOnChantier {
 }
 
 model QualiteOnChantier {
-  id         String   @id @default(uuid())
+  id         String @id @default(uuid())
   qualiteId  String
   chantierId String
 
   // Seules ces options restent
-  circonf Boolean  @default(false)
-  quart   Boolean  @default(false)
+  circonf Boolean @default(false)
+  quart   Boolean @default(false)
 
   qualite  Qualite  @relation(fields: [qualiteId], references: [id])
   chantier Chantier @relation(fields: [chantierId], references: [id])
@@ -130,12 +133,16 @@ model NumberingState {
   id         String @id @default(uuid())
   userId     String
   chantierId String
-  nextNumber Int // prochain numéro pour (user, chantier)
+  qualiteId  String
+  nextNumber Int
 
   user     User     @relation(fields: [userId], references: [id])
   chantier Chantier @relation(fields: [chantierId], references: [id])
+  qualite  Qualite  @relation(fields: [qualiteId], references: [id])
 
-  @@unique([userId, chantierId])
+  @@unique([userId, chantierId, qualiteId])
+  // @@unique([userId, chantierId])          
+  @@index([qualiteId])
 }
 
 /**
