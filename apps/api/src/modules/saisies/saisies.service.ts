@@ -94,45 +94,45 @@ async function assertFKs(
 }
 
 // Numérotation auto par (user, chantier, qualité)
+// =================== NUMÉROTATION ATOMIQUE ===================
 async function ensureNumberingAndGetNext(
   userId: string,
   chantierId: string,
   qualiteId: string,
 ) {
-  // Vérifie la présence des FKs pour éviter la violation de contrainte
-  await assertFKs(userId, chantierId, qualiteId);
-
-  // Point de départ perso
   const user = await prisma.user.findUnique({
     where: { id: userId },
     select: { numStart: true },
   });
   const start = user?.numStart ?? 1;
 
-  // upsert sur la clé composée (userId, chantierId, qualiteId)
-  // ⚠️ on utilise connect pour poser clairement les FKs
-  const st = await prisma.numberingState.upsert({
-    where: {
-      userId_chantierId_qualiteId: { userId, chantierId, qualiteId },
-    },
-    create: {
-      nextNumber: start,
-      user: { connect: { id: userId } },
-      chantier: { connect: { id: chantierId } },
-      qualite: { connect: { id: qualiteId } },
-    },
-    update: {},
-    select: { nextNumber: true },
-  });
+  return prisma.$transaction(async (tx) => {
+    const existing = await tx.numberingState.findUnique({
+      where: {
+        userId_chantierId_qualiteId: { userId, chantierId, qualiteId },
+      },
+      select: { nextNumber: true },
+    });
 
-  await prisma.numberingState.update({
-    where: {
-      userId_chantierId_qualiteId: { userId, chantierId, qualiteId },
-    },
-    data: { nextNumber: st.nextNumber + 1 },
-  });
+    if (!existing) {
+      // Première saisie pour (user, chantier, qualité) → crée l’état à start
+      await tx.numberingState.create({
+        data: { userId, chantierId, qualiteId, nextNumber: start + 1 },
+      });
+      // Numéro attribué = start
+      return start;
+    }
 
-  return st.nextNumber;
+    // Incrémente et récupère la valeur après incrément
+    const updated = await tx.numberingState.update({
+      where: { userId_chantierId_qualiteId: { userId, chantierId, qualiteId } },
+      data: { nextNumber: { increment: 1 } },
+      select: { nextNumber: true },
+    });
+
+    // La valeur stockée est "prochain numéro" → on attribue "updated - 1"
+    return updated.nextNumber - 1;
+  });
 }
 
 /**
@@ -240,13 +240,22 @@ export async function createSaisieService(
  * List
  * ========================= */
 export async function listSaisiesService(
-  auth: Auth,
+  auth: { userId: string; role: "BUCHERON" | "SUPERVISEUR" },
   filters: { chantierId: string; qualiteId: string },
 ) {
   await assertAccessToChantier(auth, filters.chantierId);
 
+  // Filtrage par rôle
+  const where: any = {
+    chantierId: filters.chantierId,
+    qualiteId: filters.qualiteId,
+  };
+  if (auth.role === "BUCHERON") {
+    where.userId = auth.userId; // ← ne voit que ses lignes
+  }
+
   return prisma.saisie.findMany({
-    where: { chantierId: filters.chantierId, qualiteId: filters.qualiteId },
+    where,
     orderBy: [{ numero: "asc" }, { date: "asc" }],
     select: {
       id: true,
@@ -268,13 +277,21 @@ export async function listSaisiesService(
  * Stats (tableau des totaux)
  * ========================= */
 export async function getSaisiesStatsService(
-  auth: Auth,
+  auth: { userId: string; role: "BUCHERON" | "SUPERVISEUR" },
   filters: { chantierId: string; qualiteId: string },
 ) {
   await assertAccessToChantier(auth, filters.chantierId);
 
+  const where: any = {
+    chantierId: filters.chantierId,
+    qualiteId: filters.qualiteId,
+  };
+  if (auth.role === "BUCHERON") {
+    where.userId = auth.userId; // ← stats filtrées à l’utilisateur
+  }
+
   const rows = await prisma.saisie.findMany({
-    where: { chantierId: filters.chantierId, qualiteId: filters.qualiteId },
+    where,
     select: { volLtV1: true, volBetweenV1V2: true, volGeV2: true },
   });
 
@@ -289,8 +306,8 @@ export async function getSaisiesStatsService(
     .map((r) => toNum(r.volGeV2))
     .filter((v): v is number => v != null);
 
-  const sum = (arr: number[]) => arr.reduce((a, b) => a + b, 0);
-  const avg = (arr: number[]) => (arr.length ? sum(arr) / arr.length : 0);
+  const sum = (a: number[]) => a.reduce((x, y) => x + y, 0);
+  const avg = (a: number[]) => (a.length ? sum(a) / a.length : 0);
 
   const ltV1 = {
     sum: sum(ltV1Vals),

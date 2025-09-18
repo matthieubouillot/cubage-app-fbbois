@@ -19,10 +19,7 @@ export default function ChantierDetail() {
   const [data, setData] = useState<ChantierDetail | null>(null);
   const [err, setErr] = useState<string | null>(null);
 
-  // id d’onglet = "q_<qualiteId>"
   const [active, setActive] = useState<string | null>(null);
-
-  // Stats de l’onglet actif
   const [stats, setStats] = useState<SaisieStats | null>(null);
 
   // Mobile: cacher totaux/seuils par défaut, mémoriser dans le hash
@@ -31,7 +28,10 @@ export default function ChantierDetail() {
     return window.location.hash.includes("stats=1");
   });
 
-  // Charger le chantier
+  // Tick de mutations (add/edit/delete) pour recharger les stats
+  const [mutTick, setMutTick] = useState(0);
+  const onMutated = () => setMutTick((t) => t + 1);
+
   useEffect(() => {
     (async () => {
       try {
@@ -43,7 +43,6 @@ export default function ChantierDetail() {
     })();
   }, [id]);
 
-  // Construire les onglets (un par qualité activée)
   const tabs = useMemo<Tab[]>(() => {
     if (!data) return [];
     return data.qualites.map((q) => ({
@@ -53,7 +52,6 @@ export default function ChantierDetail() {
     }));
   }, [data]);
 
-  // Définir l’onglet actif (hash si présent, sinon 1er)
   useEffect(() => {
     if (!active && tabs.length > 0) {
       const raw = window.location.hash?.replace("#", "");
@@ -64,14 +62,12 @@ export default function ChantierDetail() {
     }
   }, [tabs, active]);
 
-  // Qualité (et essence) actives
   const activeQualite = useMemo(() => {
     if (!data || !active) return null;
     const qid = active.replace(/^q_/, "");
     return data.qualites.find((q) => q.id === qid) || null;
   }, [data, active]);
 
-  // Charger les stats quand l’onglet change
   useEffect(() => {
     (async () => {
       if (!data || !activeQualite) {
@@ -85,7 +81,7 @@ export default function ChantierDetail() {
         setStats(null);
       }
     })();
-  }, [data, activeQualite]);
+  }, [data, activeQualite, mutTick]);
 
   if (err) return <div className="p-4 text-red-600">{err}</div>;
   if (!data) return <div className="p-4 text-gray-600">Chargement…</div>;
@@ -93,25 +89,24 @@ export default function ChantierDetail() {
     return <div className="p-4 text-gray-600">Aucune qualité activée.</div>;
 
   const activeEcorce = activeQualite.pourcentageEcorce ?? 0;
-
   const setHash = (id: string, show: boolean) => {
     const flag = show ? "&stats=1" : "";
     window.location.hash = `${id}${flag}`;
   };
 
   return (
-    <div className="max-w-7xl mx-auto px-4 md:px-6 py-8 space-y-8">
+    <div className="max-w-[1200px] mx-auto px-4 lg:px-6 py-8 space-y-8">
       {/* Header centré */}
       <header className="text-center space-y-1">
-        <h1 className="text-2xl md:text-3xl font-semibold tracking-tight">
+        <h1 className="text-2xl lg:text-3xl font-semibold tracking-tight">
           {data.referenceLot}
         </h1>
         <p className="text-sm text-gray-500">
-          {data.proprietaireFirstName} {data.proprietaire} — {data.commune}
+          {data.proprietaire} — {data.commune}
           {data.lieuDit ? ` (${data.lieuDit})` : ""}
         </p>
         <p className="text-xs text-gray-400">
-          Convention : <strong>{data.convention}</strong>
+          Convention : {data.convention}
           {(data.section || data.parcel) && (
             <>
               {" • "}Section : <strong>{data.section ?? "—"}</strong>
@@ -135,14 +130,14 @@ export default function ChantierDetail() {
 
       {/* Seuils + toggle mobile */}
       <div className="text-center text-[12px] text-gray-500">
-        <div className="hidden md:block">
+        <div className="hidden lg:block">
           Seuils : V1 ={" "}
           <span className="tabular-nums font-semibold">0,250 m³</span> • V2 ={" "}
           <span className="tabular-nums font-semibold">0,500 m³</span> • %
           écorce :{" "}
           <span className="tabular-nums font-semibold">{activeEcorce}%</span>
         </div>
-        <div className="md:hidden">
+        <div className="lg:hidden">
           <button
             onClick={() => {
               const next = !showStatsMobile;
@@ -171,19 +166,23 @@ export default function ChantierDetail() {
 
       {/* Stats + Table même largeur */}
       <div className="space-y-6">
-        <div className="max-w-5xl mx-auto">
-          <div className="hidden md:block">
+        <div className="max-w-[1100px] mx-auto">
+          <div className="hidden lg:block">
             <StatsTable stats={stats} />
           </div>
           {showStatsMobile && (
-            <div className="md:hidden">
+            <div className="lg:hidden">
               <StatsTable stats={stats} />
             </div>
           )}
         </div>
 
-        <div className="max-w-5xl mx-auto">
-          <SaisieTab chantierId={data.id} qualiteId={activeQualite.id} />
+        <div className="max-w-[1100px] mx-auto">
+          <SaisieTab
+            chantierId={data.id}
+            qualiteId={activeQualite.id}
+            onMutated={onMutated}
+          />
         </div>
       </div>
     </div>

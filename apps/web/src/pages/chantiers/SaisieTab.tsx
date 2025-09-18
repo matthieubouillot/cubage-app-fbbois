@@ -1,5 +1,5 @@
 // apps/web/src/pages/chantiers/SaisieTab.tsx
-import React, { useEffect, useRef, useState, forwardRef } from "react";
+import React, { forwardRef, useEffect, useRef, useState } from "react";
 import {
   listSaisies,
   createSaisie,
@@ -9,7 +9,7 @@ import {
 } from "../../features/saisies/api";
 import { twMerge } from "tailwind-merge";
 
-/* ───────────────── helpers ───────────────── */
+/* ───────── helpers ───────── */
 function fmt3(v?: number | null) {
   return v != null
     ? Number(v).toLocaleString("fr-FR", {
@@ -19,8 +19,14 @@ function fmt3(v?: number | null) {
     : "";
 }
 const onlyNum = (s: string) => s.replace(/[^\d.,]/g, "");
+const fmtDate = (iso: string) =>
+  new Date(iso).toLocaleDateString("fr-FR", {
+    year: "2-digit",
+    month: "2-digit",
+    day: "2-digit",
+  });
 
-/* ───────────────── UI atoms ───────────────── */
+/* ───────── UI atoms ───────── */
 const BtnPrimary = ({
   className = "",
   ...rest
@@ -56,14 +62,23 @@ const LabeledInput = forwardRef<
     placeholder?: string;
     inputMode?: React.HTMLAttributes<HTMLInputElement>["inputMode"];
     autoFocus?: boolean;
+    className?: string;
   }
 >(
   (
-    { label, value, onChange, placeholder, inputMode, autoFocus, ...rest },
+    {
+      label,
+      value,
+      onChange,
+      placeholder,
+      inputMode,
+      autoFocus,
+      className = "",
+    },
     ref,
   ) => {
     return (
-      <label className="block">
+      <label className={twMerge("block", className)}>
         <div className="text-xs text-gray-600 mb-1">{label}</div>
         <input
           ref={ref}
@@ -73,7 +88,6 @@ const LabeledInput = forwardRef<
           placeholder={placeholder}
           inputMode={inputMode}
           autoFocus={autoFocus}
-          {...rest}
         />
       </label>
     );
@@ -86,7 +100,7 @@ function Th(props: React.ThHTMLAttributes<HTMLTableHeaderCellElement>) {
   return (
     <th
       className={twMerge(
-        "px-3 py-2 text-left whitespace-nowrap text-xs font-medium text-gray-600 uppercase tracking-wide border-b border-gray-200",
+        "px-3 py-2 text-center whitespace-nowrap text-xs font-medium text-gray-600 uppercase tracking-wide border-b border-gray-200",
         className,
       )}
       {...rest}
@@ -96,11 +110,14 @@ function Th(props: React.ThHTMLAttributes<HTMLTableHeaderCellElement>) {
 function Td(props: React.TdHTMLAttributes<HTMLTableCellElement>) {
   const { className = "", ...rest } = props;
   return (
-    <td className={twMerge("px-3 py-2 align-middle", className)} {...rest} />
+    <td
+      className={twMerge("px-3 py-2 align-middle text-center", className)}
+      {...rest}
+    />
   );
 }
 
-/* ───────────────── Modal centré (mobile + desktop) ───────────────── */
+/* ───────── Modal ───────── */
 function Modal({
   open,
   onClose,
@@ -149,13 +166,15 @@ function Modal({
   );
 }
 
-/* ───────────────── Main ───────────────── */
+/* ───────── Main ───────── */
 export default function SaisieTab({
   chantierId,
   qualiteId,
+  onMutated,
 }: {
   chantierId: string;
   qualiteId: string;
+  onMutated?: () => void;
 }) {
   const [rows, setRows] = useState<SaisieRow[] | null>(null);
   const [err, setErr] = useState<string | null>(null);
@@ -193,7 +212,7 @@ export default function SaisieTab({
   function openAdd() {
     setAddForm({ longueur: "", diametre: "", annotation: "" });
     setShowAdd(true);
-    setTimeout(() => addLongRef.current?.focus(), 50);
+    setTimeout(() => addLongRef.current?.focus(), 60);
   }
   async function submitAdd() {
     try {
@@ -218,6 +237,7 @@ export default function SaisieTab({
       });
       setShowAdd(false);
       await refresh();
+      onMutated?.();
     } catch (e: any) {
       setErr(e.message || "Erreur lors de l’ajout");
     }
@@ -254,6 +274,7 @@ export default function SaisieTab({
       });
       setShowEdit(null);
       await refresh();
+      onMutated?.();
     } catch (e: any) {
       setErr(e.message || "Erreur lors de la modification");
     }
@@ -265,104 +286,126 @@ export default function SaisieTab({
       if (!window.confirm("Supprimer cette ligne ?")) return;
       await deleteSaisie(id);
       await refresh();
+      onMutated?.();
     } catch (e: any) {
       setErr(e.message || "Erreur lors de la suppression");
     }
   }
 
   return (
-    <div className="w-full md:w-[850px] mx-auto space-y-6 relative">
+    <div className="w-full max-w-[1100px] mx-auto space-y-6 relative">
       {/* action bar desktop */}
-      <div className="hidden md:flex justify-center">
+      <div className="hidden lg:flex justify-center">
         <BtnPrimary onClick={openAdd}>Ajouter une saisie</BtnPrimary>
       </div>
 
       {/* bouton flottant mobile */}
       <BtnPrimary
         onClick={openAdd}
-        className="md:hidden fixed bottom-20 right-6 z-40 w-14 h-14 rounded-full text-2xl p-0"
+        className="lg:hidden fixed bottom-20 right-6 z-40 w-14 h-14 rounded-full text-2xl p-0"
         aria-label="Ajouter"
       >
         +
       </BtnPrimary>
 
       {/* tableau desktop */}
-      <div className="hidden md:block mx-auto bg-white border rounded-xl overflow-x-auto shadow-sm">
-        <table className="w-full min-w-[820px] text-sm">
+      <div className="hidden lg:block mx-auto bg-white border rounded-xl overflow-x-auto shadow-sm">
+        <table className="text-sm table-fixed">
+          <colgroup>
+            <col className="w-[7%]" /> {/* N° */}
+            <col className="w-[10%]" /> {/* Date */}
+            <col className="w-[10%]" /> {/* LONG */}
+            <col className="w-[10%]" /> {/* DIAM */}
+            <col className="w-[14%]" /> {/* < V1 */}
+            <col className="w-[14%]" /> {/* V1–V2 */}
+            <col className="w-[14%]" /> {/* ≥ V2 */}
+            <col className="w-[16%]" /> {/* Annotation */}
+            <col className="w-[5%]" /> {/* Actions */}
+          </colgroup>
           <thead className="bg-gray-50 sticky top-0 z-10">
             <tr>
-              <Th className="text-center">N°</Th>
-              <Th className="text-center">LONG.</Th>
-              <Th className="text-center">DIAM</Th>
-              <Th className="text-right">vol. &lt; V1</Th>
-              <Th className="text-right">V1 ≤ vol. &lt; V2</Th>
-              <Th className="text-right">vol. ≥ V2</Th>
+              <Th>N°</Th>
+              <Th>Date</Th>
+              <Th>LONG.</Th>
+              <Th>DIAM</Th>
+              <Th>vol. &lt; V1</Th>
+              <Th>V1 ≤ vol. &lt; V2</Th>
+              <Th>vol. ≥ V2</Th>
               <Th>Annotation</Th>
-              <Th className="w-[160px] text-center">Actions</Th>
+              <Th>Actions</Th>
             </tr>
           </thead>
           <tbody className="[&>tr:nth-child(odd)]:bg-gray-50/60">
             {!rows && (
               <tr>
-                <Td colSpan={8} className="text-center py-4 text-gray-600">
+                <Td colSpan={9} className="py-4 text-gray-600">
                   Chargement…
                 </Td>
               </tr>
             )}
             {rows && rows.length === 0 && (
               <tr>
-                <Td colSpan={8} className="text-center py-4 text-gray-600">
+                <Td colSpan={9} className="py-4 text-gray-600">
                   Aucune saisie.
                 </Td>
               </tr>
             )}
-            {rows?.map((r) => (
-              <tr key={r.id} className="border-b border-gray-100">
-                <Td className="text-center tabular-nums">{r.numero}</Td>
-                <Td className="text-center tabular-nums">
-                  {Number(r.longueur).toLocaleString("fr-FR")}
-                </Td>
-                <Td className="text-center tabular-nums">
-                  {Number(r.diametre).toLocaleString("fr-FR")}
-                </Td>
-                <Td className="text-right tabular-nums pr-3">
-                  {fmt3(r.volLtV1)}
-                </Td>
-                <Td className="text-right tabular-nums pr-3">
-                  {fmt3(r.volBetweenV1V2)}
-                </Td>
-                <Td className="text-right tabular-nums pr-3">
-                  {fmt3(r.volGeV2)}
-                </Td>
-                <Td className="max-w-[320px]">
-                  <span className="truncate block" title={r.annotation || ""}>
-                    {r.annotation}
-                  </span>
-                </Td>
-                <Td className="text-center">
-                  <div className="flex items-center justify-center gap-2">
-                    <BtnPrimary
-                      className="px-3 py-1.5 text-xs"
-                      onClick={() => openEdit(r)}
+            {rows?.map((r) => {
+              const who = r.user
+                ? `${r.user.firstName} ${r.user.lastName}`
+                : "—";
+              return (
+                <tr key={r.id} className="border-b border-gray-100">
+                  <Td
+                    title={`Bûcheron : ${who}`}
+                    aria-label={`Bûcheron : ${who}`}
+                    className="tabular-nums"
+                  >
+                    {r.numero}
+                  </Td>
+                  <Td className="tabular-nums">{fmtDate(r.date)}</Td>
+                  <Td className="tabular-nums">
+                    {Number(r.longueur).toLocaleString("fr-FR")}
+                  </Td>
+                  <Td className="tabular-nums">
+                    {Number(r.diametre).toLocaleString("fr-FR")}
+                  </Td>
+                  <Td className="tabular-nums">{fmt3(r.volLtV1)}</Td>
+                  <Td className="tabular-nums">{fmt3(r.volBetweenV1V2)}</Td>
+                  <Td className="tabular-nums">{fmt3(r.volGeV2)}</Td>
+                  <Td className="max-w-[320px]">
+                    <span
+                      className="truncate inline-block w-full"
+                      title={r.annotation || ""}
                     >
-                      Éditer
-                    </BtnPrimary>
-                    <BtnDanger
-                      className="px-3 py-1.5 text-xs"
-                      onClick={() => remove(r.id)}
-                    >
-                      Suppr.
-                    </BtnDanger>
-                  </div>
-                </Td>
-              </tr>
-            ))}
+                      {r.annotation || "—"}
+                    </span>
+                  </Td>
+                  <Td>
+                    <div className="flex items-center justify-center gap-2">
+                      <BtnPrimary
+                        className="px-3 py-1.5 text-xs"
+                        onClick={() => openEdit(r)}
+                      >
+                        Éditer
+                      </BtnPrimary>
+                      <BtnDanger
+                        className="px-3 py-1.5 text-xs"
+                        onClick={() => remove(r.id)}
+                      >
+                        Suppr.
+                      </BtnDanger>
+                    </div>
+                  </Td>
+                </tr>
+              );
+            })}
           </tbody>
         </table>
       </div>
 
-      {/* cartes mobile */}
-      <div className="md:hidden space-y-3">
+      {/* cartes mobile (toujours actives en paysage) */}
+      <div className="lg:hidden space-y-3">
         {!rows && (
           <div className="text-center py-3 text-gray-600 bg-white border rounded-xl">
             Chargement…
@@ -376,21 +419,16 @@ export default function SaisieTab({
         {rows?.map((r) => (
           <div key={r.id} className="bg-white border rounded-xl p-3 shadow-sm">
             <div className="flex items-center justify-between">
-              <div className="text-sm text-gray-500">N° {r.numero}</div>
-              <div className="flex gap-2">
-                <BtnPrimary
-                  className="px-3 py-1.5 text-xs"
-                  onClick={() => openEdit(r)}
-                >
-                  Éditer
-                </BtnPrimary>
-                <BtnDanger
-                  className="px-3 py-1.5 text-xs"
-                  onClick={() => remove(r.id)}
-                >
-                  Suppr.
-                </BtnDanger>
+              <div className="text-sm text-gray-500">
+                N° {r.numero}
+                {r.user && (
+                  <span className="text-gray-400">
+                    {" "}
+                    — {r.user.firstName} {r.user.lastName}
+                  </span>
+                )}
               </div>
+              <div className="text-xs text-gray-500">{fmtDate(r.date)}</div>
             </div>
 
             {/* LONG + DIAM */}
@@ -405,7 +443,7 @@ export default function SaisieTab({
               />
             </div>
 
-            {/* V1 strip: 3 colonnes sur la même ligne */}
+            {/* V1 strip */}
             <div className="mt-2 grid grid-cols-3 gap-2 text-sm">
               <Info
                 label="< V1"
@@ -424,13 +462,29 @@ export default function SaisieTab({
               />
             </div>
 
-            {/* Annotation en bas */}
+            {/* Annotation */}
             <div className="mt-2">
               <Info
                 label="Annotation"
                 value={r.annotation || "—"}
                 className="w-full"
               />
+            </div>
+
+            {/* Actions */}
+            <div className="mt-2 flex justify-end gap-2">
+              <BtnPrimary
+                className="px-3 py-1.5 text-xs"
+                onClick={() => openEdit(r)}
+              >
+                Éditer
+              </BtnPrimary>
+              <BtnDanger
+                className="px-3 py-1.5 text-xs"
+                onClick={() => remove(r.id)}
+              >
+                Suppr.
+              </BtnDanger>
             </div>
           </div>
         ))}
@@ -449,7 +503,6 @@ export default function SaisieTab({
       >
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
           <LabeledInput
-            ref={addLongRef}
             label="LONG. (m)"
             value={addForm.longueur}
             onChange={(v) =>
@@ -458,6 +511,7 @@ export default function SaisieTab({
             placeholder="ex: 6,5"
             inputMode="decimal"
             autoFocus
+            ref={addLongRef}
           />
           <LabeledInput
             label="DIAM. (cm)"
@@ -535,7 +589,7 @@ function Info({
       <div className="text-[11px] uppercase tracking-wide text-gray-500">
         {label}
       </div>
-      <div className="font-medium">{value || "—"}</div>
+      <div className="font-medium text-center">{value || "—"}</div>
     </div>
   );
 }

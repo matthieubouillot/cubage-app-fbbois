@@ -1,6 +1,9 @@
+// apps/web/src/components/StatsTable.tsx
 import React from "react";
 import { twMerge } from "tailwind-merge";
 import type { SaisieStats } from "../features/saisies/api";
+
+
 
 export default function StatsTable({
   stats,
@@ -9,9 +12,6 @@ export default function StatsTable({
   stats: SaisieStats | null;
   className?: string;
 }) {
-  // largeur commune desktop (même que SaisieTab)
-  const widthClass = "w-full md:w-[850px]";
-
   const fmt = (n?: number) =>
     (n ?? 0).toLocaleString("fr-FR", {
       minimumFractionDigits: 3,
@@ -19,10 +19,10 @@ export default function StatsTable({
     });
 
   return (
-    <div className={twMerge("mx-auto", widthClass, className)}>
+    <div className={twMerge("mx-auto", "w-full md:w-[650px]", className)}>
       <div className="overflow-x-auto bg-white rounded-xl border shadow-sm">
         <table className="w-full text-sm table-fixed">
-          {/* Même largeur pour chaque colonne (y compris la 1ère étiquette) */}
+          {/* colonnes fixes pour garder un rendu propre */}
           <colgroup>
             <col className="w-[22%]" />
             <col className="w-[19.5%]" />

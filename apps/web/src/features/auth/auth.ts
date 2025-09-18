@@ -23,3 +23,10 @@ export function clearSession() {
   localStorage.removeItem(USER_KEY);
 }
 export function isAuthenticated() { return !!getToken(); }
+
+export function logout() {
+  try {
+    localStorage.removeItem("token");
+    localStorage.removeItem("user");
+  } catch {}
+}

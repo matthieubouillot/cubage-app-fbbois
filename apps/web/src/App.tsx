@@ -1,13 +1,14 @@
 import { Routes, Route, Navigate } from "react-router-dom";
-import LoginPage from "./pages/login/LoginPage";
+import LoginPage from "./pages/auth/LoginPage";
 import Home from "./pages/common/Home";
 import NotFound from "./pages/common/NotFound";
 import ChantiersList from "./pages/chantiers/ChantiersList";
-import MesChantiers from "./pages/chantiers/MesChantiers";
 import Navbar from "./components/Navbar";
 import { ProtectedRoute, RoleRoute } from "./features/auth/ProtectedRoute";
 import CreateChantier from "./pages/chantiers/CreateChantier";
 import ChantierDetail from "./pages/chantiers/ChantierDetail";
+import ForgotPassword from "./pages/auth/ForgotPassword";
+import ResetPassword from "./pages/auth/ResetPassword";
 
 export default function App() {
   return (
@@ -18,7 +19,7 @@ export default function App() {
 
         {/* Protégé (affiche Navbar seulement une fois connecté) */}
         <Route element={<ProtectedLayout />}>
-          <Route path="/" element={<Home />} />
+          <Route path="/home" element={<Home />} />
 
           {/* Rôle: SUPERVISEUR */}
           <Route element={<RoleRoute allow={["SUPERVISEUR"]} />}>
@@ -29,13 +30,14 @@ export default function App() {
 
           {/* Rôle: BUCHERON */}
           <Route element={<RoleRoute allow={["BUCHERON"]} />}>
-            <Route path="/mes-chantiers" element={<MesChantiers />} />
             <Route path="/chantiers/:id" element={<ChantierDetail />} />
           </Route>
         </Route>
 
         {/* Divers */}
         <Route path="/logout" element={<Navigate to="/login" replace />} />
+        <Route path="/forgot-password" element={<ForgotPassword />} />
+        <Route path="/reset-password" element={<ResetPassword />} />
         <Route path="*" element={<NotFound />} />
       </Routes>
     </div>

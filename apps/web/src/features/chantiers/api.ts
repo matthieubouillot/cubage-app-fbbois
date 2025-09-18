@@ -14,13 +14,11 @@ export type ChantierListItem = {
   referenceLot: string;
   proprietaire: string;
   proprietaireFirstName: string; 
-
   commune: string;
   lieuDit: string;
   section?: string | null;
   parcel?: string | null;
   essences: Essence[];
-  // pour les listes on peut rester léger
   qualites: { id: string; name: string; essence: { id: string } }[];
 };
 
@@ -45,4 +43,8 @@ export function fetchChantiers() {
 
 export function fetchChantier(id: string) {
   return api<ChantierDetail>(`/chantiers/${id}`);
+}
+
+export function deleteChantier(id: string) {
+  return api<{ ok: boolean }>(`/chantiers/${id}`, { method: "DELETE" });
 }

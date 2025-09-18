@@ -22,13 +22,30 @@ model User {
   password  String // hashé (bcrypt)
 
   // Plage personnelle de numérotation (pour les bûcherons)
-  numStart Int?
-  numEnd   Int?
+  numStart Int
+  numEnd   Int
 
   // Relations
   numberingStates NumberingState[] // compteur (par chantier)
   assignments     Assignment[] // chantiers assignés
   saisies         Saisie[] // lignes saisies
+
+  passwordResetTokens PasswordResetToken[]
+}
+
+model PasswordResetToken {
+  id        String    @id @default(uuid())
+  userId    String
+  token     String    @unique
+  expiresAt DateTime
+  usedAt    DateTime?
+  createdAt DateTime  @default(now())
+
+  // Relation vers User (ok)
+  user User @relation(fields: [userId], references: [id])
+
+  @@index([userId])
+  @@index([expiresAt])
 }
 
 /**
@@ -141,8 +158,6 @@ model NumberingState {
   qualite  Qualite  @relation(fields: [qualiteId], references: [id])
 
   @@unique([userId, chantierId, qualiteId])
-  // @@unique([userId, chantierId])          
-  @@index([qualiteId])
 }
 
 /**

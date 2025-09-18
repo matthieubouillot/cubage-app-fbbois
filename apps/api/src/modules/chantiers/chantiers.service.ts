@@ -200,7 +200,7 @@ export async function getChantierByIdService(
       referenceLot: true,
       convention: true,
       proprietaire: true,
-      proprietaireFirstName: true, 
+      proprietaireFirstName: true,
       commune: true,
       lieuDit: true,
       section: true,
@@ -246,4 +246,48 @@ export async function getChantierByIdService(
       .map((a) => a.user)
       .filter((u) => u.role === "BUCHERON"),
   };
+}
+
+export async function deleteChantierService(
+  user: {
+    userId: string;
+    role: "BUCHERON" | "SUPERVISEUR";
+  },
+  chantierId: string,
+) {
+  if (user.role !== "SUPERVISEUR") {
+    throw new Error("Accès refusé");
+  }
+
+  // Vérifier l'existence (on peut aussi ignorer et deleteMany, mais c'est plus clair)
+  const exists = await prisma.chantier.findUnique({
+    where: { id: chantierId },
+    select: { id: true },
+  });
+  if (!exists) {
+    throw new Error("Chantier introuvable");
+  }
+
+  // Supprimer proprement les dépendances (ordre important si pas de CASCADE en DB)
+  await prisma.$transaction(async (tx) => {
+    // 1) Lignes de saisie
+    await tx.saisie.deleteMany({ where: { chantierId } });
+
+    // 2) États de numérotation
+    await tx.numberingState.deleteMany({ where: { chantierId } });
+
+    // 3) Assignations bûcherons
+    await tx.assignment.deleteMany({ where: { chantierId } });
+
+    // 4) Jonctions Qualité↔Chantier
+    await tx.qualiteOnChantier.deleteMany({ where: { chantierId } });
+
+    // 5) Jonctions Essence↔Chantier
+    await tx.essenceOnChantier.deleteMany({ where: { chantierId } });
+
+    // 6) Le chantier lui-même
+    await tx.chantier.delete({ where: { id: chantierId } });
+  });
+
+  return { ok: true };
 }
