@@ -5,26 +5,38 @@ import {
   listChantiersService,
   getChantierByIdService,
   deleteChantierService,
+  updateChantierService,
 } from "./chantiers.service";
 
-// ✅ Schéma d'entrée : PAS d'essenceIds (elles sont déduites des qualiteIds)
 const CreateChantierSchema = z.object({
-  referenceLot: z.string().min(1),
-  convention: z.string().min(1),
-  proprietaire: z.string().min(1),
-  proprietaireFirstName: z.string().min(1),
-  commune: z.string().min(1),
-  lieuDit: z.string().min(1),
+  referenceLot: z.string().regex(/^\d+$/, "Uniquement des chiffres").min(1),
+  convention: z.string().regex(/^\d+$/, "Uniquement des chiffres").min(1),
+  proprietaire: z
+    .string()
+    .regex(/^[A-Za-zÀ-ÖØ-öø-ÿ\s-]+$/, "Uniquement des lettres")
+    .min(1),
+  proprietaireFirstName: z
+    .string()
+    .regex(/^[A-Za-zÀ-ÖØ-öø-ÿ\s-]+$/, "Uniquement des lettres")
+    .min(1),
+  commune: z
+    .string()
+    .regex(/^[A-Za-zÀ-ÖØ-öø-ÿ\s-]+$/, "Uniquement des lettres")
+    .min(1),
+  lieuDit: z
+    .string()
+    .regex(/^[A-Za-zÀ-ÖØ-öø-ÿ\s-]+$/, "Uniquement des lettres")
+    .min(1),
   qualiteIds: z.array(z.string().uuid()).min(1, "Choisis au moins une qualité"),
   bucheronIds: z
     .array(z.string().uuid())
     .min(1, "Choisis au moins un bûcheron"),
   section: z
     .string()
-    .regex(/^[A-Za-z]{1,2}$/)
-    .optional()
-    .nullable(),
-  parcel: z.string().regex(/^\d+$/).optional().nullable(),
+    .regex(/^[A-Za-z]{1,2}$/, "1 ou 2 lettres max"),
+  parcel: z
+    .string()
+    .regex(/^\d+$/, "Uniquement des chiffres"),
 });
 
 export async function createChantier(req: Request, res: Response) {
@@ -43,6 +55,36 @@ export async function createChantier(req: Request, res: Response) {
     return res
       .status(400)
       .json({ error: e.message || "Impossible de créer le chantier" });
+  }
+}
+
+const UpsertChantierSchema = z.object({
+  referenceLot: z.string().regex(/^\d+$/).min(1),
+  convention: z.string().regex(/^\d+$/).min(1),
+  proprietaire: z.string().regex(/^[A-Za-zÀ-ÖØ-öø-ÿ\s-]+$/).min(1),
+  proprietaireFirstName: z.string().regex(/^[A-Za-zÀ-ÖØ-öø-ÿ\s-]+$/).min(1),
+  commune: z.string().regex(/^[A-Za-zÀ-ÖØ-öø-ÿ\s-]+$/).min(1),
+  lieuDit: z.string().regex(/^[A-Za-zÀ-ÖØ-öø-ÿ\s-]+$/).min(1),
+  qualiteIds: z.array(z.string().uuid()).min(1),
+  bucheronIds: z.array(z.string().uuid()).min(1),
+  section: z.string().regex(/^[A-Za-z]{1,2}$/),
+  parcel: z.string().regex(/^\d+$/),
+});
+
+export async function updateChantier(req: Request, res: Response) {
+  const auth = (req as any).user as { userId: string; role: "BUCHERON" | "SUPERVISEUR" };
+  const parse = UpsertChantierSchema.safeParse(req.body);
+  if (!parse.success) {
+    return res.status(400).json({ error: "Champs invalides", details: parse.error.flatten() });
+  }
+  try {
+    const updated = await updateChantierService(auth, req.params.id, parse.data);
+    return res.json(updated);
+  } catch (e: any) {
+    const msg = (e?.message || "").toLowerCase();
+    if (msg.includes("introuvable")) return res.status(404).json({ error: "Chantier introuvable" });
+    if (msg.includes("accès refusé")) return res.status(403).json({ error: "Accès refusé" });
+    return res.status(500).json({ error: e.message || "Erreur lors de la mise à jour" });
   }
 }
 
@@ -95,10 +137,8 @@ export async function deleteChantier(req: Request, res: Response) {
     if (msg.includes("accès refusé")) {
       return res.status(403).json({ error: "Accès refusé" });
     }
-    return res
-      .status(500)
-      .json({
-        error: e.message || "Erreur lors de la suppression du chantier",
-      });
+    return res.status(500).json({
+      error: e.message || "Erreur lors de la suppression du chantier",
+    });
   }
 }

@@ -11,6 +11,7 @@ import { getSaisiesStats, type SaisieStats } from "../../features/saisies/api";
 import ChipTabs from "../../components/ChipTabs";
 import StatsTable from "../../components/StatsTable";
 import SaisieTab from "./SaisieTab";
+import MobileBack from "../../components/MobileBack";
 
 type Tab = { id: string; label: string; hint?: string };
 
@@ -93,9 +94,11 @@ export default function ChantierDetail() {
     const flag = show ? "&stats=1" : "";
     window.location.hash = `${id}${flag}`;
   };
-
   return (
     <div className="max-w-[1200px] mx-auto px-4 lg:px-6 py-8 space-y-8">
+      {/* Bouton retour mobile — juste sous la navbar */}
+      <MobileBack fallback="/chantiers" variant="inline" className="mb-3" />
+
       {/* Header centré */}
       <header className="text-center space-y-1">
         <h1 className="text-2xl lg:text-3xl font-semibold tracking-tight">
@@ -132,10 +135,10 @@ export default function ChantierDetail() {
       <div className="text-center text-[12px] text-gray-500">
         <div className="hidden lg:block">
           Seuils : V1 ={" "}
-          <span className="tabular-nums font-semibold">0,250 m³</span> • V2 ={" "}
-          <span className="tabular-nums font-semibold">0,500 m³</span> • %
-          écorce :{" "}
-          <span className="tabular-nums font-semibold">{activeEcorce}%</span>
+          <span className="tabular-nums font-semibold">0,250 m³</span> • V2 =
+          <span className="tabular-nums font-semibold"> 0,500 m³</span> • %
+          écorce :
+          <span className="tabular-nums font-semibold"> {activeEcorce}%</span>
         </div>
         <div className="lg:hidden">
           <button
@@ -154,9 +157,10 @@ export default function ChantierDetail() {
             <div className="mt-1">
               Seuils : V1 ={" "}
               <span className="tabular-nums font-semibold">0,250 m³</span> • V2
-              = <span className="tabular-nums font-semibold">0,500 m³</span> • %
-              écorce :{" "}
+              =<span className="tabular-nums font-semibold"> 0,500 m³</span> • %
+              écorce :
               <span className="tabular-nums font-semibold">
+                {" "}
                 {activeEcorce}%
               </span>
             </div>

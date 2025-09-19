@@ -1,16 +1,25 @@
+// apps/web/src/features/auth/ProtectedRoute.tsx
 import { Navigate, Outlet } from "react-router-dom";
 import { getUser, isAuthenticated } from "./auth";
 
 export function ProtectedRoute({ children }: { children?: React.ReactNode }) {
   if (!isAuthenticated()) return <Navigate to="/login" replace />;
-  // s'il y a des enfants -> les rendre (usage <ProtectedRoute>...</ProtectedRoute>)
-  // sinon -> rendre l'Outlet (usage <Route element={<ProtectedRoute/>}>)
   return children ? <>{children}</> : <Outlet />;
 }
 
-export function RoleRoute({ allow, children }: { allow: Array<"BUCHERON" | "SUPERVISEUR">; children?: React.ReactNode }) {
+export function RoleRoute({
+  allow,
+  children,
+}: {
+  allow: Array<"BUCHERON" | "SUPERVISEUR">;
+  children?: React.ReactNode;
+}) {
   const user = getUser();
   if (!user) return <Navigate to="/login" replace />;
-  if (!allow.includes(user.role)) return <Navigate to="/" replace />;
+
+  if (!allow.includes(user.role)) {
+    const fallback = user.role === "SUPERVISEUR" ? "/home" : "/chantiers";
+    return <Navigate to={fallback} replace />; 
+  }
   return children ? <>{children}</> : <Outlet />;
 }

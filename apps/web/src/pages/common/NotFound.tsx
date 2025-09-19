@@ -14,7 +14,7 @@ export default function NotFound() {
           </p>
           <div className="pt-2 flex items-center justify-center gap-3">
             <Link
-              to="/home"
+              to="/chantiers"
               className="inline-flex items-center justify-center rounded-full bg-black text-white px-5 py-2 text-sm"
             >
               Revenir à l’accueil

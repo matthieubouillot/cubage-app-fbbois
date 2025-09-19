@@ -1,4 +1,3 @@
-// apps/web/src/pages/chantiers/SaisieTab.tsx
 import React, { forwardRef, useEffect, useRef, useState } from "react";
 import {
   listSaisies,
@@ -116,6 +115,15 @@ function Td(props: React.TdHTMLAttributes<HTMLTableCellElement>) {
     />
   );
 }
+
+/* ───────── Boutons iOS (mobile) ───────── */
+const iosIconBase =
+  "inline-flex items-center justify-center rounded-full h-11 w-11 shadow-[0_8px_20px_rgba(0,0,0,0.12)] active:scale-[0.98] transition";
+const iosIconBtn = iosIconBase + " bg-black text-white"; // FAB mobile identique UsersPage
+const iosIconBtnLight =
+  iosIconBase + " bg-white text-gray-900 border border-gray-300";
+const iosIconBtnDanger =
+  iosIconBase + " bg-white text-red-700 border border-red-500";
 
 /* ───────── Modal ───────── */
 function Modal({
@@ -299,28 +307,29 @@ export default function SaisieTab({
         <BtnPrimary onClick={openAdd}>Ajouter une saisie</BtnPrimary>
       </div>
 
-      {/* bouton flottant mobile */}
-      <BtnPrimary
+      {/* FAB mobile — identique UsersPage */}
+      <button
         onClick={openAdd}
-        className="lg:hidden fixed bottom-20 right-6 z-40 w-14 h-14 rounded-full text-2xl p-0"
-        aria-label="Ajouter"
+        className={twMerge(iosIconBtn, "fixed bottom-6 right-6 z-40 lg:hidden")}
+        aria-label="Ajouter une saisie"
+        title="Ajouter une saisie"
       >
-        +
-      </BtnPrimary>
+        <PlusIcon className="h-6 w-6" />
+      </button>
 
       {/* tableau desktop */}
       <div className="hidden lg:block mx-auto bg-white border rounded-xl overflow-x-auto shadow-sm">
         <table className="text-sm table-fixed">
           <colgroup>
-            <col className="w-[7%]" /> {/* N° */}
-            <col className="w-[10%]" /> {/* Date */}
-            <col className="w-[10%]" /> {/* LONG */}
-            <col className="w-[10%]" /> {/* DIAM */}
-            <col className="w-[14%]" /> {/* < V1 */}
-            <col className="w-[14%]" /> {/* V1–V2 */}
-            <col className="w-[14%]" /> {/* ≥ V2 */}
-            <col className="w-[16%]" /> {/* Annotation */}
-            <col className="w-[5%]" /> {/* Actions */}
+            <col className="w-[7%]" />
+            <col className="w-[10%]" />
+            <col className="w-[10%]" />
+            <col className="w-[10%]" />
+            <col className="w-[14%]" />
+            <col className="w-[14%]" />
+            <col className="w-[14%]" />
+            <col className="w-[16%]" />
+            <col className="w-[5%]" />
           </colgroup>
           <thead className="bg-gray-50 sticky top-0 z-10">
             <tr>
@@ -356,11 +365,7 @@ export default function SaisieTab({
                 : "—";
               return (
                 <tr key={r.id} className="border-b border-gray-100">
-                  <Td
-                    title={`Bûcheron : ${who}`}
-                    aria-label={`Bûcheron : ${who}`}
-                    className="tabular-nums"
-                  >
+                  <Td title={`${who}`} className="tabular-nums">
                     {r.numero}
                   </Td>
                   <Td className="tabular-nums">{fmtDate(r.date)}</Td>
@@ -387,7 +392,7 @@ export default function SaisieTab({
                         className="px-3 py-1.5 text-xs"
                         onClick={() => openEdit(r)}
                       >
-                        Éditer
+                        Modifier
                       </BtnPrimary>
                       <BtnDanger
                         className="px-3 py-1.5 text-xs"
@@ -404,7 +409,7 @@ export default function SaisieTab({
         </table>
       </div>
 
-      {/* cartes mobile (toujours actives en paysage) */}
+      {/* cartes mobile (style iOS pour les actions) */}
       <div className="lg:hidden space-y-3">
         {!rows && (
           <div className="text-center py-3 text-gray-600 bg-white border rounded-xl">
@@ -471,20 +476,24 @@ export default function SaisieTab({
               />
             </div>
 
-            {/* Actions */}
-            <div className="mt-2 flex justify-end gap-2">
-              <BtnPrimary
-                className="px-3 py-1.5 text-xs"
+            {/* Actions iOS centrées */}
+            <div className="mt-3 flex items-center justify-center gap-3">
+              <button
+                className={iosIconBtnLight}
                 onClick={() => openEdit(r)}
+                aria-label="Modifier"
+                title="Modifier"
               >
-                Éditer
-              </BtnPrimary>
-              <BtnDanger
-                className="px-3 py-1.5 text-xs"
+                <PencilIcon className="h-5 w-5" />
+              </button>
+              <button
+                className={iosIconBtnDanger}
                 onClick={() => remove(r.id)}
+                aria-label="Supprimer"
+                title="Supprimer"
               >
-                Suppr.
-              </BtnDanger>
+                <TrashIcon className="h-5 w-5" />
+              </button>
             </div>
           </div>
         ))}
@@ -533,7 +542,7 @@ export default function SaisieTab({
         </div>
       </Modal>
 
-      {/* Modal éditer */}
+      {/* Modal modifier */}
       <Modal
         open={!!showEdit}
         onClose={() => setShowEdit(null)}
@@ -591,5 +600,49 @@ function Info({
       </div>
       <div className="font-medium text-center">{value || "—"}</div>
     </div>
+  );
+}
+
+/* ───────── Icônes SVG ───────── */
+function PlusIcon({ className = "" }: { className?: string }) {
+  return (
+    <svg viewBox="0 0 24 24" className={className} fill="none" aria-hidden>
+      <path
+        d="M12 5v14M5 12h14"
+        stroke="currentColor"
+        strokeWidth="2"
+        strokeLinecap="round"
+      />
+    </svg>
+  );
+}
+function PencilIcon({ className = "" }: { className?: string }) {
+  return (
+    <svg viewBox="0 0 24 24" className={className} fill="none">
+      <path
+        d="M3 21l3.75-.75L20.5 6.5a2.12 2.12 0 0 0-3-3L3.75 17.25 3 21Z"
+        stroke="currentColor"
+        strokeWidth="2"
+      />
+      <path d="M14.5 6.5l3 3" stroke="currentColor" strokeWidth="2" />
+    </svg>
+  );
+}
+function TrashIcon({ className = "" }: { className?: string }) {
+  return (
+    <svg viewBox="0 0 24 24" className={className} fill="none">
+      <path
+        d="M4 7h16M9 7V5h6v2M6 7l1 12a2 2 0 0 0 2 2h6a2 2 0 0 0 2-2l1-12"
+        stroke="currentColor"
+        strokeWidth="2"
+        strokeLinecap="round"
+      />
+      <path
+        d="M10 11v6M14 11v6"
+        stroke="currentColor"
+        strokeWidth="2"
+        strokeLinecap="round"
+      />
+    </svg>
   );
 }

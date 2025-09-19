@@ -1,4 +1,3 @@
-// apps/web/src/components/Navbar.tsx
 import { Link, useNavigate } from "react-router-dom";
 import { getUser, logout } from "../features/auth/auth";
 
@@ -8,13 +7,13 @@ export default function Navbar() {
 
   const onLogout = () => {
     try {
-      logout?.();
+      logout(); 
     } finally {
-      nav("/login");
+      nav("/login", { replace: true }); 
     }
   };
 
-  const homeHref = u?.role === "SUPERVISEUR" ? "/" : "/chantiers";
+  const homeHref = u?.role === "SUPERVISEUR" ? "/home" : "/chantiers";
 
   return (
     <nav className="w-full border-b bg-white shadow-sm">

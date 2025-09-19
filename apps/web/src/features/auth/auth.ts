@@ -13,20 +13,26 @@ export function setSession(token: string, user: User) {
   localStorage.setItem(TOKEN_KEY, token);
   localStorage.setItem(USER_KEY, JSON.stringify(user));
 }
-export function getToken() { return localStorage.getItem(TOKEN_KEY); }
+
+export function getToken() {
+  return localStorage.getItem(TOKEN_KEY);
+}
+
 export function getUser(): User | null {
   const raw = localStorage.getItem(USER_KEY);
-  return raw ? JSON.parse(raw) as User : null;
+  return raw ? (JSON.parse(raw) as User) : null;
 }
+
 export function clearSession() {
   localStorage.removeItem(TOKEN_KEY);
   localStorage.removeItem(USER_KEY);
+  sessionStorage.clear();
 }
-export function isAuthenticated() { return !!getToken(); }
+
+export function isAuthenticated() {
+  return !!getToken();
+}
 
 export function logout() {
-  try {
-    localStorage.removeItem("token");
-    localStorage.removeItem("user");
-  } catch {}
+  clearSession();
 }

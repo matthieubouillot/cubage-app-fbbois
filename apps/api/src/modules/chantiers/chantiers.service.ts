@@ -10,8 +10,9 @@ type CreateInput = {
   lieuDit: string;
   qualiteIds: string[];
   bucheronIds: string[];
-  section?: string | null;
-  parcel?: string | null;
+  section: string;
+  parcel: string;
+  createdAt: Date;
 };
 
 /**
@@ -49,8 +50,8 @@ export async function createChantierService(input: CreateInput) {
         proprietaireFirstName: input.proprietaireFirstName,
         commune: input.commune,
         lieuDit: input.lieuDit,
-        section: input.section?.toUpperCase() ?? null,
-        parcel: input.parcel ?? null,
+        section: input.section.toUpperCase(),
+        parcel: input.parcel,
         essences: { create: essenceIds.map((essenceId) => ({ essenceId })) },
         assignments: {
           create: input.bucheronIds.map((userId) => ({ userId })),
@@ -132,8 +133,147 @@ export async function createChantierService(input: CreateInput) {
   });
 }
 
+export async function updateChantierService(
+  user: { userId: string; role: "BUCHERON" | "SUPERVISEUR" },
+  id: string,
+  input: {
+    referenceLot: string;
+    convention: string;
+    proprietaire: string;
+    proprietaireFirstName: string;
+    commune: string;
+    lieuDit: string;
+    section: string;
+    parcel: string;
+    qualiteIds: string[];
+    bucheronIds: string[];
+  },
+) {
+  if (user.role !== "SUPERVISEUR") throw new Error("Accès refusé");
+
+  // vérifie que le chantier existe
+  const exists = await prisma.chantier.findUnique({
+    where: { id },
+    select: { id: true },
+  });
+  if (!exists) throw new Error("Chantier introuvable");
+
+  // vérifie bûcherons
+  const buchs = await prisma.user.findMany({
+    where: { id: { in: input.bucheronIds }, role: "BUCHERON" },
+    select: { id: true },
+  });
+  if (buchs.length !== input.bucheronIds.length) {
+    throw new Error("Un ou plusieurs utilisateurs ne sont pas des bûcherons");
+  }
+
+  // charge qualités et déduit essences
+  const qualites = await prisma.qualite.findMany({
+    where: { id: { in: input.qualiteIds } },
+    select: { id: true, essenceId: true },
+  });
+  if (qualites.length !== input.qualiteIds.length) {
+    throw new Error("Une ou plusieurs qualités sont introuvables");
+  }
+  const essenceIds = Array.from(new Set(qualites.map((q) => q.essenceId)));
+
+  // récupère état actuel (pour diff)
+  const current = await prisma.chantier.findUniqueOrThrow({
+    where: { id },
+    select: {
+      qualites: { select: { qualiteId: true } },
+      assignments: { select: { userId: true } },
+      essences: { select: { essenceId: true } },
+    },
+  });
+
+  const currentQualiteIds = current.qualites.map((x) => x.qualiteId);
+  const currentUserIds = current.assignments.map((x) => x.userId);
+  const currentEssenceIds = current.essences.map((x) => x.essenceId);
+
+  const qualitesToAdd = input.qualiteIds.filter(
+    (x) => !currentQualiteIds.includes(x),
+  );
+  const qualitesToRemove = currentQualiteIds.filter(
+    (x) => !input.qualiteIds.includes(x),
+  );
+
+  const usersToAdd = input.bucheronIds.filter(
+    (x) => !currentUserIds.includes(x),
+  );
+  const usersToRemove = currentUserIds.filter(
+    (x) => !input.bucheronIds.includes(x),
+  );
+
+  const essencesToAdd = essenceIds.filter(
+    (x) => !currentEssenceIds.includes(x),
+  );
+  const essencesToRemove = currentEssenceIds.filter(
+    (x) => !essenceIds.includes(x),
+  );
+
+  await prisma.$transaction(async (tx) => {
+    // 1) champs simples
+    await tx.chantier.update({
+      where: { id },
+      data: {
+        referenceLot: input.referenceLot,
+        convention: input.convention,
+        proprietaire: input.proprietaire,
+        proprietaireFirstName: input.proprietaireFirstName,
+        commune: input.commune,
+        lieuDit: input.lieuDit,
+        section: input.section.toUpperCase(),
+        parcel: input.parcel,
+      },
+    });
+
+    // 2) sync QualiteOnChantier
+    if (qualitesToRemove.length) {
+      await tx.qualiteOnChantier.deleteMany({
+        where: { chantierId: id, qualiteId: { in: qualitesToRemove } },
+      });
+    }
+    if (qualitesToAdd.length) {
+      await tx.qualiteOnChantier.createMany({
+        data: qualitesToAdd.map((qid) => ({ chantierId: id, qualiteId: qid })),
+        skipDuplicates: true,
+      });
+    }
+
+    // 3) sync Assignments
+    if (usersToRemove.length) {
+      await tx.assignment.deleteMany({
+        where: { chantierId: id, userId: { in: usersToRemove } },
+      });
+    }
+    if (usersToAdd.length) {
+      await tx.assignment.createMany({
+        data: usersToAdd.map((uid) => ({ chantierId: id, userId: uid })),
+        skipDuplicates: true,
+      });
+    }
+
+    // 4) sync EssenceOnChantier (dérivé des qualités)
+    if (essencesToRemove.length) {
+      await tx.essenceOnChantier.deleteMany({
+        where: { chantierId: id, essenceId: { in: essencesToRemove } },
+      });
+    }
+    if (essencesToAdd.length) {
+      await tx.essenceOnChantier.createMany({
+        data: essencesToAdd.map((eid) => ({ chantierId: id, essenceId: eid })),
+        skipDuplicates: true,
+      });
+    }
+  });
+
+  // renvoie le détail à jour (même format que getChantierByIdService)
+  return getChantierByIdService({ userId: user.userId, role: user.role }, id);
+}
+
 /**
- * Liste des chantiers (filtrée par rôle)
+ * Liste des chantiers (filtrée par date de création + rôle/assignment)
  */
 export async function listChantiersService(user: {
   userId: string;
@@ -146,7 +286,7 @@ export async function listChantiersService(user: {
 
   const rows = await prisma.chantier.findMany({
     where,
-    orderBy: { referenceLot: "asc" },
+    orderBy: [{ createdAt: "asc" }, { referenceLot: "asc" }],
     select: {
       id: true,
       referenceLot: true,
@@ -156,11 +296,19 @@ export async function listChantiersService(user: {
       lieuDit: true,
       section: true,
       parcel: true,
+      // createdAt non nécessaire côté UI si on ne l’affiche pas, on peut l’omettre
       essences: { select: { essence: { select: { id: true, name: true } } } },
       qualites: {
         select: {
           qualite: {
             select: { id: true, name: true, essence: { select: { id: true } } },
+          },
+        },
+      },
+      assignments: {
+        select: {
+          user: {
+            select: { id: true, firstName: true, lastName: true, role: true },
           },
         },
       },
@@ -178,6 +326,10 @@ export async function listChantiersService(user: {
     parcel: r.parcel,
     essences: r.essences.map((e) => e.essence),
     qualites: r.qualites.map((q) => q.qualite),
+    bucherons: r.assignments
+      .map((a) => a.user)
+      .filter((u) => u.role === "BUCHERON")
+      .map((u) => ({ id: u.id, firstName: u.firstName, lastName: u.lastName })),
   }));
 }
 

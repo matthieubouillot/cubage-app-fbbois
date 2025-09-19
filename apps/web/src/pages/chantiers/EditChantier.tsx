@@ -1,8 +1,9 @@
-// apps/web/src/pages/chantiers/CreateChantier.tsx
+// apps/web/src/pages/chantiers/EditChantier.tsx
 import { useEffect, useMemo, useState } from "react";
-import { api } from "../../lib/api";
+import { useNavigate, useParams } from "react-router-dom";
 import { twMerge } from "tailwind-merge";
-import { useNavigate } from "react-router-dom";
+import { api } from "../../lib/api";
+import { updateChantier } from "../../features/chantiers/api";
 import MobileBack from "../../components/MobileBack";
 
 type Qualite = { id: string; name: string; pourcentageEcorce: number };
@@ -16,125 +17,157 @@ type FormState = {
   proprietaireFirstName: string;
   commune: string;
   lieuDit: string;
-  section?: string;
-  parcel?: string;
+  section: string;
+  parcel: string;
   qualiteIds: string[];
   bucheronIds: string[];
 };
 
-export default function CreateChantier() {
+/* ───────── helpers de saisie (mêmes contraintes que "Create") ───────── */
+const onlyDigits = (s: string) => s.replace(/\D/g, "");
+const onlyLetters = (s: string) => s.replace(/[^A-Za-zÀ-ÖØ-öø-ÿ\s-]/g, ""); // lettres + espaces + tirets
+
+export default function EditChantier() {
+  const { id } = useParams();
   const nav = useNavigate();
+
   const [essences, setEssences] = useState<EssenceFull[]>([]);
   const [bucherons, setBucherons] = useState<User[]>([]);
+  const [form, setForm] = useState<FormState | null>(null);
+
   const [loading, setLoading] = useState(false);
   const [err, setErr] = useState<string | null>(null);
-  const [ok, setOk] = useState<string | null>(null);
 
-  const [form, setForm] = useState<FormState>({
-    referenceLot: "",
-    convention: "",
-    proprietaire: "",
-    proprietaireFirstName: "",
-    commune: "",
-    lieuDit: "",
-    section: "",
-    parcel: "",
-    qualiteIds: [],
-    bucheronIds: [],
-  });
-
+  // Charge référentiels + chantier
   useEffect(() => {
     (async () => {
-      const e = await api<EssenceFull[]>("/essences");
-      setEssences(e);
-      const u = await api<any[]>("/users?role=BUCHERON");
-      setBucherons(
-        u.map((x) => ({
-          id: x.id,
-          firstName: x.firstName,
-          lastName: x.lastName,
-        })),
-      );
-    })();
-  }, []);
+      try {
+        const [e, u, chantier] = await Promise.all([
+          api<EssenceFull[]>("/essences"),
+          api<any[]>("/users?role=BUCHERON"),
+          api<any>(`/chantiers/${id}`),
+        ]);
 
+        setEssences(e);
+        setBucherons(
+          u.map((x) => ({
+            id: x.id,
+            firstName: x.firstName,
+            lastName: x.lastName,
+          })),
+        );
+
+        setForm({
+          referenceLot: chantier.referenceLot ?? "",
+          convention: chantier.convention ?? "",
+          proprietaire: chantier.proprietaire ?? "",
+          proprietaireFirstName: chantier.proprietaireFirstName ?? "",
+          commune: chantier.commune ?? "",
+          lieuDit: chantier.lieuDit ?? "",
+          section: chantier.section ?? "",
+          parcel: chantier.parcel ?? "",
+          qualiteIds: (chantier.qualites ?? []).map((q: any) => q.id),
+          bucheronIds: (chantier.bucherons ?? []).map((b: any) => b.id),
+        });
+      } catch (e: any) {
+        setErr(e.message || "Erreur de chargement");
+      }
+    })();
+  }, [id]);
+
+  /* Comptage des cases cochées par essence */
   const checkedByEssence = useMemo(() => {
     const map = new Map<string, number>();
     for (const ess of essences) {
       const ids = new Set(ess.qualites.map((q) => q.id));
-      const count = form.qualiteIds.reduce(
+      const count = (form?.qualiteIds ?? []).reduce(
         (acc, qid) => acc + (ids.has(qid) ? 1 : 0),
         0,
       );
       map.set(ess.id, count);
     }
     return map;
-  }, [essences, form.qualiteIds]);
+  }, [essences, form?.qualiteIds]);
 
+  /* Toggles */
   const toggleQualite = (qualiteId: string) => {
     setForm((f) => {
+      if (!f) return f;
       const set = new Set(f.qualiteIds);
       set.has(qualiteId) ? set.delete(qualiteId) : set.add(qualiteId);
       return { ...f, qualiteIds: Array.from(set) };
     });
   };
 
-  const toggleBucheron = (id: string) => {
+  const toggleBucheron = (userId: string) => {
     setForm((f) => {
+      if (!f) return f;
       const set = new Set(f.bucheronIds);
-      set.has(id) ? set.delete(id) : set.add(id);
+      set.has(userId) ? set.delete(userId) : set.add(userId);
       return { ...f, bucheronIds: Array.from(set) };
     });
   };
 
+  /* Soumission */
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!form) return;
     setErr(null);
-    setOk(null);
     setLoading(true);
     try {
-      if (form.qualiteIds.length === 0)
+      // validations front “soft” (back refera Zod strict)
+      if (!form.referenceLot || !/^\d+$/.test(form.referenceLot))
+        throw new Error("Référence : chiffres uniquement.");
+      if (!form.convention || !/^\d+$/.test(form.convention))
+        throw new Error("Convention : chiffres uniquement.");
+      if (
+        !form.proprietaire ||
+        !/^[A-Za-zÀ-ÖØ-öø-ÿ\s-]+$/.test(form.proprietaire)
+      )
+        throw new Error("Nom propriétaire : lettres uniquement.");
+      if (
+        !form.proprietaireFirstName ||
+        !/^[A-Za-zÀ-ÖØ-öø-ÿ\s-]+$/.test(form.proprietaireFirstName)
+      )
+        throw new Error("Prénom propriétaire : lettres uniquement.");
+      if (!form.commune || !/^[A-Za-zÀ-ÖØ-öø-ÿ\s-]+$/.test(form.commune))
+        throw new Error("Commune : lettres uniquement.");
+      if (!form.lieuDit || !/^[A-Za-zÀ-ÖØ-öø-ÿ\s-]+$/.test(form.lieuDit))
+        throw new Error("Lieu-dit : lettres uniquement.");
+      if (form.section && !/^[A-Za-z]{1,2}$/.test(form.section))
+        throw new Error("Section : 1 à 2 lettres.");
+      if (form.parcel && !/^\d+$/.test(form.parcel))
+        throw new Error("Parcelle : chiffres uniquement.");
+      if (!form.qualiteIds.length)
         throw new Error("Choisis au moins une qualité.");
-      if (form.bucheronIds.length === 0)
+      if (!form.bucheronIds.length)
         throw new Error("Choisis au moins un bûcheron.");
 
-      const payload = {
+      await updateChantier(id!, {
         referenceLot: form.referenceLot,
         convention: form.convention,
         proprietaire: form.proprietaire,
         proprietaireFirstName: form.proprietaireFirstName,
         commune: form.commune,
         lieuDit: form.lieuDit,
-        section: form.section?.toUpperCase() || undefined,
-        parcel: form.parcel || undefined,
+        section: form.section.toUpperCase(),
+        parcel: form.parcel,
         qualiteIds: form.qualiteIds,
         bucheronIds: form.bucheronIds,
-      };
-
-      await api("/chantiers", {
-        method: "POST",
-        body: JSON.stringify(payload),
       });
 
-      setForm({
-        referenceLot: "",
-        convention: "",
-        proprietaire: "",
-        proprietaireFirstName: "",
-        commune: "",
-        lieuDit: "",
-        section: "",
-        parcel: "",
-        qualiteIds: [],
-        bucheronIds: [],
-      });
-      nav("/chantiers");
+      // retour sur la page détail
+      nav(`/chantiers`);
     } catch (e: any) {
-      setErr(e.message || "Erreur");
+      setErr(e.message || "Erreur lors de l’enregistrement");
     } finally {
       setLoading(false);
     }
   };
+
+  if (!form) {
+    return <div className="p-4 text-sm text-gray-600">Chargement…</div>;
+  }
 
   return (
     <div className="px-4 py-6">
@@ -144,11 +177,11 @@ export default function CreateChantier() {
         {/* Titre centré */}
         <header className="text-center mb-6">
           <h1 className="text-2xl lg:text-3xl font-semibold tracking-tight">
-            Créer un chantier
+            Modifier le chantier
           </h1>
           <p className="text-sm text-gray-500">
-            Renseigne les informations, choisis les qualités et assigne les
-            bûcherons.
+            Mets à jour les informations, les qualités et les bûcherons
+            assignés.
           </p>
         </header>
 
@@ -156,101 +189,76 @@ export default function CreateChantier() {
           {/* Carte 1 — Infos générales */}
           <Card title="Informations générales">
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-              <Field label="Référence du lot * (chiffres)">
+              <Field label="Référence du lot *">
                 <Input
                   value={form.referenceLot}
                   onChange={(e) =>
                     setForm({
                       ...form,
-                      referenceLot: e.target.value.replace(/\D/g, ""),
+                      referenceLot: onlyDigits(e.target.value),
                     })
                   }
-                  required
                   inputMode="numeric"
                   pattern="\d+"
+                  required
                 />
               </Field>
 
-              <Field label="Convention * (chiffres)">
+              <Field label="Convention *">
                 <Input
                   value={form.convention}
                   onChange={(e) =>
-                    setForm({
-                      ...form,
-                      convention: e.target.value.replace(/\D/g, ""),
-                    })
+                    setForm({ ...form, convention: onlyDigits(e.target.value) })
                   }
-                  required
                   inputMode="numeric"
                   pattern="\d+"
+                  required
                 />
               </Field>
 
-              <Field label="Nom du propriétaire * (lettres)">
+              <Field label="Nom du propriétaire *">
                 <Input
                   value={form.proprietaire}
                   onChange={(e) =>
                     setForm({
                       ...form,
-                      proprietaire: e.target.value.replace(
-                        /[^A-Za-zÀ-ÖØ-öø-ÿ\s-]/g,
-                        "",
-                      ),
+                      proprietaire: onlyLetters(e.target.value),
                     })
                   }
                   required
-                  pattern="[A-Za-zÀ-ÖØ-öø-ÿ\s-]+"
                 />
               </Field>
 
-              <Field label="Prénom du propriétaire * (lettres)">
+              <Field label="Prénom du propriétaire *">
                 <Input
                   value={form.proprietaireFirstName}
                   onChange={(e) =>
                     setForm({
                       ...form,
-                      proprietaireFirstName: e.target.value.replace(
-                        /[^A-Za-zÀ-ÖØ-öø-ÿ\s-]/g,
-                        "",
-                      ),
+                      proprietaireFirstName: onlyLetters(e.target.value),
                     })
                   }
                   required
-                  pattern="[A-Za-zÀ-ÖØ-öø-ÿ\s-]+"
                 />
               </Field>
 
-              <Field label="Commune * (lettres)">
+              <Field label="Commune *">
                 <Input
                   value={form.commune}
                   onChange={(e) =>
-                    setForm({
-                      ...form,
-                      commune: e.target.value.replace(
-                        /[^A-Za-zÀ-ÖØ-öø-ÿ\s-]/g,
-                        "",
-                      ),
-                    })
+                    setForm({ ...form, commune: onlyLetters(e.target.value) })
                   }
                   required
-                  pattern="[A-Za-zÀ-ÖØ-öø-ÿ\s-]+"
                 />
               </Field>
 
-              <Field label="Lieu-dit * (lettres)">
+              <Field label="Lieu-dit *">
                 <Input
                   value={form.lieuDit}
                   onChange={(e) =>
-                    setForm({
-                      ...form,
-                      lieuDit: e.target.value.replace(
-                        /[^A-Za-zÀ-ÖØ-öø-ÿ\s-]/g,
-                        "",
-                      ),
-                    })
+                    setForm({ ...form, lieuDit: onlyLetters(e.target.value) })
                   }
                   required
-                  pattern="[A-Za-zÀ-ÖØ-öø-ÿ\s-]+"
                 />
               </Field>
 
@@ -261,25 +269,24 @@ export default function CreateChantier() {
                     setForm({
                       ...form,
                       section: e.target.value
-                        .replace(/[^A-Za-z]/g, "")
-                        .toUpperCase(),
+                        .toUpperCase()
+                        .replace(/[^A-Z]/g, "")
+                        .slice(0, 2),
                     })
                   }
-                  pattern="[A-Za-z]{1,2}"
+                  placeholder="ex: A ou AB"
                 />
               </Field>
 
               <Field label="Parcelle (chiffres)">
                 <Input
                   value={form.parcel ?? ""}
-                  inputMode="numeric"
-                  pattern="\d+"
                   onChange={(e) =>
-                    setForm({
-                      ...form,
-                      parcel: e.target.value.replace(/\D/g, ""),
-                    })
+                    setForm({ ...form, parcel: onlyDigits(e.target.value) })
                   }
+                  inputMode="numeric"
+                  pattern="\d*"
+                  placeholder="ex: 257"
                 />
               </Field>
             </div>
@@ -297,26 +304,32 @@ export default function CreateChantier() {
                     </span>
                   </div>
                   <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
-                    {e.qualites.map((q) => (
-                      <label
-                        key={q.id}
-                        className="flex items-center gap-2 rounded-lg border px-3 py-2 hover:bg-gray-50 cursor-pointer"
-                        title={`${q.pourcentageEcorce}% d'écorce`}
-                      >
-                        <input
-                          type="checkbox"
-                          className="accent-black"
-                          checked={form.qualiteIds.includes(q.id)}
-                          onChange={() => toggleQualite(q.id)}
-                        />
-                        <span className="flex-1">
-                          <span className="font-medium">{q.name}</span>{" "}
-                          <span className="text-gray-400 text-xs">
-                            ({q.pourcentageEcorce}% écorce)
+                    {e.qualites.map((q) => {
+                      const checked = form.qualiteIds.includes(q.id);
+                      return (
+                        <label
+                          key={q.id}
+                          className={twMerge(
+                            "flex items-center gap-2 rounded-lg border px-3 py-2 cursor-pointer hover:bg-gray-50",
+                            checked && "border-black/50 bg-gray-50",
+                          )}
+                          title={`${q.pourcentageEcorce}% d'écorce`}
+                        >
+                          <input
+                            type="checkbox"
+                            className="accent-black"
+                            checked={checked}
+                            onChange={() => toggleQualite(q.id)}
+                          />
+                          <span className="flex-1">
+                            <span className="font-medium">{q.name}</span>{" "}
+                            <span className="text-gray-400 text-xs">
+                              ({q.pourcentageEcorce}% écorce)
+                            </span>
                           </span>
-                        </span>
-                      </label>
-                    ))}
+                        </label>
+                      );
+                    })}
                   </div>
                 </div>
               ))}
@@ -359,15 +372,14 @@ export default function CreateChantier() {
 
           {/* Messages */}
           {err && <div className="text-center text-sm text-red-600">{err}</div>}
-          {ok && <div className="text-center text-sm text-green-600">{ok}</div>}
 
-          {/* Barre d'action sticky en mobile, centrée en desktop */}
-          <div className="bottom-3 flex justify-center">
+          {/* Actions */}
+          <div className="flex justify-center">
             <button
               disabled={loading}
               className="rounded-full bg-black text-white px-6 py-3 shadow-sm hover:shadow-md disabled:opacity-60"
             >
-              {loading ? "Création…" : "Créer le chantier"}
+              {loading ? "Enregistrement…" : "Enregistrer les modifications"}
             </button>
           </div>
         </form>

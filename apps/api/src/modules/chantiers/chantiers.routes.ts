@@ -1,6 +1,6 @@
 import { Router } from "express";
 import { authenticate, authorize } from "../../middlewares/auth";
-import { createChantier, listChantiers, getChantierById, deleteChantier } from "./chantiers.controller";
+import { createChantier, listChantiers, getChantierById, deleteChantier, updateChantier } from "./chantiers.controller";
 
 const router = Router();
 
@@ -13,6 +13,7 @@ router.get("/:id", authenticate, getChantierById);
 // Création (superviseur uniquement)
 router.post("/", authenticate, authorize("SUPERVISEUR"), createChantier);
 
+router.put("/:id", authenticate, authorize("SUPERVISEUR"), updateChantier); 
 
 // Suppression (superviseur uniquement)
 router.delete("/:id",authenticate,authorize("SUPERVISEUR"),deleteChantier);

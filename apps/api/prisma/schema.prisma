@@ -13,22 +13,21 @@ datasource db {
  * ───────────────────────────────────────────────────────────────
  */
 model User {
-  id        String @id @default(uuid())
+  id        String   @id @default(uuid())
   firstName String
   lastName  String
   role      Role
-  email     String @unique
+  email     String   @unique
   phone     String
-  password  String // hashé (bcrypt)
+  password  String
+  numStart  Int
+  numEnd    Int
 
-  // Plage personnelle de numérotation (pour les bûcherons)
-  numStart Int
-  numEnd   Int
+  createdAt DateTime @default(now())
 
-  // Relations
-  numberingStates NumberingState[] // compteur (par chantier)
-  assignments     Assignment[] // chantiers assignés
-  saisies         Saisie[] // lignes saisies
+  numberingStates NumberingState[]
+  assignments     Assignment[]
+  saisies         Saisie[]
 
   passwordResetTokens PasswordResetToken[]
 }
@@ -61,8 +60,9 @@ model Chantier {
   commune               String
   lieuDit               String
   convention            String
-  section               String? @db.VarChar(2)
-  parcel                String?
+  section               String @db.VarChar(2)
+  parcel                String
+  createdAt             DateTime @default(now()) 
 
   essences        EssenceOnChantier[]
   qualites        QualiteOnChantier[]

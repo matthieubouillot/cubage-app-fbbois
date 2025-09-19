@@ -13,13 +13,14 @@ export type ChantierListItem = {
   id: string;
   referenceLot: string;
   proprietaire: string;
-  proprietaireFirstName: string; 
+  proprietaireFirstName: string ;
   commune: string;
-  lieuDit: string;
-  section?: string | null;
-  parcel?: string | null;
-  essences: Essence[];
+  lieuDit: string ;
+  section: string ;
+  parcel: string ;
+  essences: { id: string; name: string }[];
   qualites: { id: string; name: string; essence: { id: string } }[];
+  bucherons: { id: string; firstName: string; lastName: string }[];
 };
 
 export type ChantierDetail = {
@@ -30,12 +31,27 @@ export type ChantierDetail = {
   proprietaireFirstName: string;
   commune: string;
   lieuDit: string;
-  section?: string | null;
-  parcel?: string | null;
+  section: string ;
+  parcel: string;
   essences: Essence[];
   qualites: Qualite[];
   bucherons: Bucheron[];
 };
+
+export type UpdateChantier = {
+  referenceLot: string;
+  convention: string;
+  proprietaire: string;
+  proprietaireFirstName: string;
+  commune: string;
+  lieuDit: string;
+  section: string;
+  parcel: string;
+  qualiteIds: string[];
+  bucheronIds: string[];
+};
+
+
 
 export function fetchChantiers() {
   return api<ChantierListItem[]>("/chantiers");
@@ -47,4 +63,12 @@ export function fetchChantier(id: string) {
 
 export function deleteChantier(id: string) {
   return api<{ ok: boolean }>(`/chantiers/${id}`, { method: "DELETE" });
+}
+
+export async function updateChantier(id: string, payload: UpdateChantier) {
+  const res = await api(`/chantiers/${id}`, {
+    method: "PUT",
+    body: JSON.stringify(payload),
+  });
+  return res;
 }
