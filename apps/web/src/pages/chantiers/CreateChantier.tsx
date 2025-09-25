@@ -265,6 +265,7 @@ export default function CreateChantier() {
                         .toUpperCase(),
                     })
                   }
+                  maxLength={2}
                   pattern="[A-Za-z]{1,2}"
                 />
               </Field>

@@ -1,22 +1,36 @@
 import { Link, useNavigate } from "react-router-dom";
+import { useEffect, useState } from "react";
 import { getUser, logout } from "../features/auth/auth";
 
 export default function Navbar() {
   const u = getUser();
   const nav = useNavigate();
+  const [online, setOnline] = useState(
+    typeof navigator !== "undefined" ? navigator.onLine : true,
+  );
+  useEffect(() => {
+    const on = () => setOnline(true);
+    const off = () => setOnline(false);
+    window.addEventListener("online", on);
+    window.addEventListener("offline", off);
+    return () => {
+      window.removeEventListener("online", on);
+      window.removeEventListener("offline", off);
+    };
+  }, []);
 
   const onLogout = () => {
     try {
-      logout(); 
+      logout();
     } finally {
-      nav("/login", { replace: true }); 
+      nav("/login", { replace: true });
     }
   };
 
   const homeHref = u?.role === "SUPERVISEUR" ? "/home" : "/chantiers";
 
   return (
-    <nav className="w-full border-b bg-white shadow-sm">
+    <nav className="w-full border-b bg-white shadow-sm sticky top-0 z-50">
       <div className="relative h-14 px-3 sm:px-6 flex items-center justify-between">
         {/* GAUCHE : Logo + titre (mobile) */}
         <div className="flex items-center gap-2">
@@ -72,6 +86,14 @@ export default function Navbar() {
           </button>
         </div>
       </div>
+      {!online && (
+        <div className="absolute left-1/2 -translate-x-1/2 top-[56px]">
+          <div className="inline-flex items-center gap-2 bg-yellow-50 border border-yellow-200 text-yellow-900 rounded-full px-3 py-1 shadow-sm">
+            <span className="inline-flex h-2 w-2 rounded-full bg-yellow-500 shadow-[0_0_0_2px_rgba(250,204,21,0.25)]" aria-hidden />
+            <span className="text-xs sm:text-sm font-medium">Mode hors ligne</span>
+          </div>
+        </div>
+      )}
     </nav>
   );
 }

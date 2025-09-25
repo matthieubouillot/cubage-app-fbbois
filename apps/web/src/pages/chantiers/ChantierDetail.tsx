@@ -76,7 +76,11 @@ export default function ChantierDetail() {
         return;
       }
       try {
-        const s = await getSaisiesStats(data.id, activeQualite.id);
+        const s = await getSaisiesStats(
+          data.id,
+          activeQualite.id,
+          activeQualite.pourcentageEcorce ?? 0,
+        );
         setStats(s);
       } catch {
         setStats(null);
@@ -185,6 +189,7 @@ export default function ChantierDetail() {
           <SaisieTab
             chantierId={data.id}
             qualiteId={activeQualite.id}
+            ecorcePercent={activeQualite.pourcentageEcorce ?? 0}
             onMutated={onMutated}
           />
         </div>

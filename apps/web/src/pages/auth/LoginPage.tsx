@@ -108,7 +108,7 @@ export default function LoginPage() {
           Astuce : compte seedé
           <br />
           <code className="bg-gray-100 px-1 rounded">
-            fb.bois43@gmail.com
+          donovantracoulat82@gmail.com
           </code>{" "}
           / <code className="bg-gray-100 px-1 rounded">fbbois2025!</code>
         </div>

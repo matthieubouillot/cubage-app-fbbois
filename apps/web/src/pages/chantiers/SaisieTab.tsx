@@ -2,7 +2,7 @@ import React, { forwardRef, useEffect, useRef, useState } from "react";
 import {
   listSaisies,
   createSaisie,
-  updateSaisie,
+  updateSaisieWithContext,
   deleteSaisie,
   type SaisieRow,
 } from "../../features/saisies/api";
@@ -178,10 +178,12 @@ function Modal({
 export default function SaisieTab({
   chantierId,
   qualiteId,
+  ecorcePercent = 0,
   onMutated,
 }: {
   chantierId: string;
   qualiteId: string;
+  ecorcePercent?: number;
   onMutated?: () => void;
 }) {
   const [rows, setRows] = useState<SaisieRow[] | null>(null);
@@ -214,6 +216,9 @@ export default function SaisieTab({
     setRows(null);
     setErr(null);
     refresh().catch((e) => setErr(e.message || "Erreur de chargement"));
+    const onUpdated = () => refresh().catch(() => {});
+    window.addEventListener("cubage:offline-updated", onUpdated as any);
+    return () => window.removeEventListener("cubage:offline-updated", onUpdated as any);
   }, [chantierId, qualiteId]);
 
   /* add */
@@ -275,7 +280,7 @@ export default function SaisieTab({
           "Longueur et diamètre doivent être des nombres positifs.",
         );
       }
-      await updateSaisie(showEdit.id, {
+      await updateSaisieWithContext(showEdit.id, chantierId, qualiteId, {
         longueur,
         diametre,
         annotation: editForm.annotation.trim() || undefined,
@@ -292,7 +297,7 @@ export default function SaisieTab({
   async function remove(id: string) {
     try {
       if (!window.confirm("Supprimer cette ligne ?")) return;
-      await deleteSaisie(id);
+      await deleteSaisie(id, chantierId, qualiteId);
       await refresh();
       onMutated?.();
     } catch (e: any) {
@@ -375,9 +380,7 @@ export default function SaisieTab({
                   <Td className="tabular-nums">
                     {Number(r.diametre).toLocaleString("fr-FR")}
                   </Td>
-                  <Td className="tabular-nums">{fmt3(r.volLtV1)}</Td>
-                  <Td className="tabular-nums">{fmt3(r.volBetweenV1V2)}</Td>
-                  <Td className="tabular-nums">{fmt3(r.volGeV2)}</Td>
+                {renderVolCells(r, ecorcePercent)}
                   <Td className="max-w-[320px]">
                     <span
                       className="truncate inline-block w-full"
@@ -450,21 +453,7 @@ export default function SaisieTab({
 
             {/* V1 strip */}
             <div className="mt-2 grid grid-cols-3 gap-2 text-sm">
-              <Info
-                label="< V1"
-                value={fmt3(r.volLtV1)}
-                className="text-center"
-              />
-              <Info
-                label="V1–V2"
-                value={fmt3(r.volBetweenV1V2)}
-                className="text-center"
-              />
-              <Info
-                label="≥ V2"
-                value={fmt3(r.volGeV2)}
-                className="text-center"
-              />
+              {renderVolCards(r, ecorcePercent)}
             </div>
 
             {/* Annotation */}
@@ -614,6 +603,57 @@ function PlusIcon({ className = "" }: { className?: string }) {
         strokeLinecap="round"
       />
     </svg>
+  );
+}
+
+/* ——— Offline volume helpers ——— */
+function computeVolNet(longueur: number, diametre: number, ecorcePercent: number) {
+  const dM = Math.max(0, Number(diametre)) / 100;
+  const base = Math.PI * Math.pow(dM / 2, 2) * Math.max(0, Number(longueur));
+  const factor = 1 - Math.max(0, Math.min(100, ecorcePercent)) / 100;
+  return base * factor;
+}
+function getVolLtV1(r: SaisieRow, ecorcePercent: number) {
+  if (r.volLtV1 != null && r.volLtV1 > 0) return r.volLtV1;
+  if ((r.volBetweenV1V2 ?? 0) > 0 || (r.volGeV2 ?? 0) > 0) return 0;
+  const vol = computeVolNet(r.longueur, r.diametre, ecorcePercent);
+  return vol < 0.25 ? vol : 0;
+}
+function getVolBetween(r: SaisieRow, ecorcePercent: number) {
+  if (r.volBetweenV1V2 != null && r.volBetweenV1V2 > 0) return r.volBetweenV1V2;
+  if ((r.volLtV1 ?? 0) > 0 || (r.volGeV2 ?? 0) > 0) return 0;
+  const vol = computeVolNet(r.longueur, r.diametre, ecorcePercent);
+  return vol >= 0.25 && vol < 0.5 ? vol : 0;
+}
+function getVolGeV2(r: SaisieRow, ecorcePercent: number) {
+  if (r.volGeV2 != null && r.volGeV2 > 0) return r.volGeV2;
+  if ((r.volLtV1 ?? 0) > 0 || (r.volBetweenV1V2 ?? 0) > 0) return 0;
+  const vol = computeVolNet(r.longueur, r.diametre, ecorcePercent);
+  return vol >= 0.5 ? vol : 0;
+}
+
+function renderVolCells(r: SaisieRow, ecorcePercent: number) {
+  const a = getVolLtV1(r, ecorcePercent);
+  const b = getVolBetween(r, ecorcePercent);
+  const c = getVolGeV2(r, ecorcePercent);
+  const cells = [
+    <Td key="a" className="tabular-nums">{a ? fmt3(a) : ""}</Td>,
+    <Td key="b" className="tabular-nums">{b ? fmt3(b) : ""}</Td>,
+    <Td key="c" className="tabular-nums">{c ? fmt3(c) : ""}</Td>,
+  ];
+  return cells;
+}
+
+function renderVolCards(r: SaisieRow, ecorcePercent: number) {
+  const a = getVolLtV1(r, ecorcePercent);
+  const b = getVolBetween(r, ecorcePercent);
+  const c = getVolGeV2(r, ecorcePercent);
+  return (
+    <>
+      <Info label="< V1" value={a ? fmt3(a) : ""} className="text-center" />
+      <Info label="V1–V2" value={b ? fmt3(b) : ""} className="text-center" />
+      <Info label=">= V2" value={c ? fmt3(c) : ""} className="text-center" />
+    </>
   );
 }
 function PencilIcon({ className = "" }: { className?: string }) {

@@ -14,6 +14,7 @@ import ForgotPassword from "./pages/auth/ForgotPassword";
 import ResetPassword from "./pages/auth/ResetPassword";
 import UsersPage from "./pages/users/UsersPage";
 import { getUser, isAuthenticated } from "./features/auth/auth";
+import { syncOfflineQueueNow } from "./features/saisies/api";
 
 export default function App() {
   // Empêche l’historique de ré-afficher une page protégée après logout (back nav)
@@ -24,6 +25,10 @@ export default function App() {
       }
     }
     window.addEventListener("pageshow", onPageShow);
+    // Try to sync any offline-queued changes on app show and when going back online
+    syncOfflineQueueNow().catch(() => {});
+    const onOnline = () => syncOfflineQueueNow().catch(() => {});
+    window.addEventListener("online", onOnline);
     return () => window.removeEventListener("pageshow", onPageShow);
   }, []);
 
