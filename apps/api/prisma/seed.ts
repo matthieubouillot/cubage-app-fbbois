@@ -105,7 +105,6 @@ async function seedUsers() {
     });
   }
 
-  console.log("✅ Utilisateurs seedés. Mot de passe par défaut:", DEFAULT_PWD);
 }
 
 async function seedEssences() {
@@ -172,24 +171,11 @@ async function seedEssences() {
     });
   }
 
-  console.log("✅ Essences & qualités seedées.");
 }
 
 async function main() {
   await seedUsers();
   await seedEssences();
-
-  // // (Optionnel) Exemple de chantier de test :
-  // const chantier = await prisma.chantier.create({
-  //   data: {
-  //     referenceLot: "LOT-TEST-001",
-  //     convention: "Convention A",
-  //     proprietaire: "Propriétaire test",
-  //     commune: "Saint-Romain-Lachalm",
-  //     lieuDit: "Le Bois Vert",
-  //   },
-  // });
-  // console.log("Chantier de test créé:", chantier.id);
 }
 
 main()

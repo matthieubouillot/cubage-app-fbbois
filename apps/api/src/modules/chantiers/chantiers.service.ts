@@ -12,7 +12,6 @@ type CreateInput = {
   bucheronIds: string[];
   section: string;
   parcel: string;
-  createdAt: Date;
 };
 
 /**
@@ -52,6 +51,7 @@ export async function createChantierService(input: CreateInput) {
         lieuDit: input.lieuDit,
         section: input.section.toUpperCase(),
         parcel: input.parcel,
+        createdAt: new Date(),
         essences: { create: essenceIds.map((essenceId) => ({ essenceId })) },
         assignments: {
           create: input.bucheronIds.map((userId) => ({ userId })),
