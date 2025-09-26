@@ -10,8 +10,14 @@ import saisieRoutes from "./modules/saisies/saisies.routes";
 import usersRoutes  from "./modules/users/users.routes";
 
 const app = express();
-app.use(cors({ origin: true, credentials: false })); 
-app.use(express.json());
+app.use(cors({
+    origin: [
+      "https://cubage-1.onrender.com",
+      "https://bouillapp.fr",
+      "https://www.bouillapp.fr"
+    ],
+    credentials: true,
+  }));app.use(express.json());
 
 app.use("/auth", authRoutes);
 app.use("/users", userRoutes);
