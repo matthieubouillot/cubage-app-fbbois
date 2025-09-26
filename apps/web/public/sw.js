@@ -1,4 +1,4 @@
-const CACHE = "cubage-shell-v1";
+const CACHE = "cubage-shell-v2";
 const APP_SHELL = [
   "/",
   "/index.html",
