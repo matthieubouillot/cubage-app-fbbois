@@ -16,6 +16,9 @@ export default function ChantiersList() {
   const nav = useNavigate();
   const u = getUser();
   const isSupervisor = u?.role === "SUPERVISEUR";
+  const [offline, setOffline] = useState<boolean>(
+    typeof navigator !== "undefined" ? !navigator.onLine : false,
+  );
 
   async function refresh() {
     try {
@@ -29,6 +32,14 @@ export default function ChantiersList() {
 
   useEffect(() => {
     refresh();
+    const onOnline = () => setOffline(false);
+    const onOffline = () => setOffline(true);
+    window.addEventListener("online", onOnline);
+    window.addEventListener("offline", onOffline);
+    return () => {
+      window.removeEventListener("online", onOnline);
+      window.removeEventListener("offline", onOffline);
+    };
   }, []);
 
   const onDelete = async (id: string) => {
@@ -49,7 +60,7 @@ export default function ChantiersList() {
   return (
     <div className="px-4 py-6">
       <div className="max-w-7xl mx-auto space-y-6">
-        {isSupervisor && (
+        {isSupervisor && !offline && (
           <MobileBack
             fallback="/home"
             variant="inline"
@@ -66,7 +77,7 @@ export default function ChantiersList() {
             {rows ? `${rows.length} chantier(s)` : "Chargement…"}
           </div>
 
-          {isSupervisor && (
+        {isSupervisor && !offline && (
             /* Desktop : bouton texte */
             <div className="hidden md:flex justify-center">
               <button
@@ -136,7 +147,7 @@ export default function ChantiersList() {
                   </div>
 
                   {/* Bûcherons (superviseur uniquement) */}
-                  {isSupervisor && (
+                  {isSupervisor && !offline && (
                     <div className="mt-3">
                       <div className="text-[11px] uppercase tracking-wide text-gray-500">
                         Bûcherons
@@ -172,7 +183,7 @@ export default function ChantiersList() {
                     <EyeIcon className="h-5 w-5" />
                   </Link>
 
-                  {isSupervisor && (
+                  {isSupervisor && !offline && (
                     <>
                       <Link
                         to={`/chantiers/${r.id}/modifier`}
@@ -264,7 +275,7 @@ export default function ChantiersList() {
                             >
                               Ouvrir
                             </Link>
-                            {isSupervisor && (
+                            {isSupervisor && !offline && (
                               <>
                                 <Link
                                   to={`/chantiers/${r.id}/modifier`}
@@ -309,7 +320,7 @@ export default function ChantiersList() {
       </div>
 
       {/* FAB mobile en bas droite (même design que UsersPage) */}
-      {isSupervisor && (
+      {isSupervisor && !offline && (
         <button
           onClick={() => nav("/chantiers/nouveau")}
           className={twMerge(

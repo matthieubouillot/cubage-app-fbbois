@@ -18,12 +18,20 @@ function fmt3(v?: number | null) {
     : "";
 }
 const onlyNum = (s: string) => s.replace(/[^\d.,]/g, "");
-const fmtDate = (iso: string) =>
-  new Date(iso).toLocaleDateString("fr-FR", {
+const fmtDate = (iso: string) => {
+  const d = new Date(iso);
+  const date = d.toLocaleDateString("fr-FR", {
     year: "2-digit",
     month: "2-digit",
     day: "2-digit",
   });
+  const time = d.toLocaleTimeString("fr-FR", {
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+  });
+  return `${date} ${time}`;
+};
 
 /* ───────── UI atoms ───────── */
 const BtnPrimary = ({

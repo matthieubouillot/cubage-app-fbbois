@@ -17,6 +17,7 @@ import {
   httpGetSaisiesStats,
 } from "./http";
 import type { SaisieRow, SaisieStats } from "./types";
+import { getUser } from "../auth/auth";
 
 // List with online->cache, offline->cache strategy
 export async function listSaisiesOffline(
@@ -128,39 +129,55 @@ export async function deleteSaisieOffline(
 // Simple sync routine to replay the queue when back online
 export async function trySyncQueue() {
   if (!isOnline()) return;
-  const all = await readQueue();
-  for (const item of all) {
-    try {
-      if (item.op.kind === "create") {
-        const { clientTempId, ...payload } = (item.op as any).payload || {};
-        const row = await httpCreate(payload);
-        await removeCachedSaisie(item.chantierId, item.qualiteId, clientTempId);
-        await upsertCachedSaisie(item.chantierId, item.qualiteId, row);
-      } else if (item.op.kind === "update") {
-        const row = await httpUpdate(item.op.id, (item.op as any).payload);
-        await upsertCachedSaisie(item.chantierId, item.qualiteId, row);
-      } else if (item.op.kind === "delete") {
-        await httpDelete(item.op.id);
-        await removeCachedSaisie(item.chantierId, item.qualiteId, item.op.id);
+  if (syncing) return;
+  syncing = true;
+  try {
+    const all = await readQueue();
+    for (const item of all) {
+      try {
+        if (item.op.kind === "create") {
+          const { clientTempId, ...payload } = (item.op as any).payload || {};
+          const row = await httpCreate(payload);
+          await removeCachedSaisie(item.chantierId, item.qualiteId, clientTempId);
+          await upsertCachedSaisie(item.chantierId, item.qualiteId, row);
+        } else if (item.op.kind === "update") {
+          const row = await httpUpdate(item.op.id, (item.op as any).payload);
+          await upsertCachedSaisie(item.chantierId, item.qualiteId, row);
+        } else if (item.op.kind === "delete") {
+          await httpDelete(item.op.id);
+          await removeCachedSaisie(item.chantierId, item.qualiteId, item.op.id);
+        }
+        await clearQueueItem(item.id!);
+      } catch {
+        // Stop at first failure to avoid rapid loops; will retry later
+        break;
       }
-      await clearQueueItem(item.id!);
-    } catch {
-      // Stop at first failure to avoid rapid loops; will retry later
-      break;
     }
+    dispatchSyncEvent();
+  } finally {
+    syncing = false;
   }
-  dispatchSyncEvent();
 }
 
 async function nextLocalNumero(chantierId: string, qualiteId: string) {
   const rows = ((await readCachedSaisiesList(chantierId, qualiteId)) || []) as {
     numero?: number;
+    user?: { id: string };
   }[];
-  const max = rows.reduce(
-    (acc, r) => (typeof r.numero === "number" && r.numero > acc ? r.numero : acc),
-    0,
-  );
-  return max + 1;
+  const me = getUser();
+  const myStart = me?.numStart ?? 1;
+  // Numérotation par (utilisateur courant, chantier, qualite)
+  let maxForMe = 0;
+  for (const r of rows) {
+    if (!r || typeof r.numero !== "number") continue;
+    // Si la ligne existante est à mon nom, utilise son numéro directement
+    if (r.user?.id === me?.id) {
+      if (r.numero > maxForMe) maxForMe = r.numero;
+    }
+  }
+  // Si aucune ligne à moi, repartir du numStart-1 pour que +1 donne numStart
+  if (maxForMe === 0) return myStart;
+  return maxForMe + 1;
 }
 
 function dispatchSyncEvent() {
@@ -168,6 +185,8 @@ function dispatchSyncEvent() {
     window.dispatchEvent(new CustomEvent("cubage:offline-updated"));
   }
 }
+
+let syncing = false;
 
 // Compute basic stats from cached rows when offline
 export async function getSaisiesStatsOffline(

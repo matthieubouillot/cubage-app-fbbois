@@ -15,6 +15,7 @@ import ResetPassword from "./pages/auth/ResetPassword";
 import UsersPage from "./pages/users/UsersPage";
 import { getUser, isAuthenticated } from "./features/auth/auth";
 import { syncOfflineQueueNow } from "./features/saisies/api";
+import { syncChantiersOfflineNow } from "./features/chantiers/api";
 
 export default function App() {
   // Empêche l’historique de ré-afficher une page protégée après logout (back nav)
@@ -26,8 +27,12 @@ export default function App() {
     }
     window.addEventListener("pageshow", onPageShow);
     // Try to sync any offline-queued changes on app show and when going back online
-    syncOfflineQueueNow().catch(() => {});
-    const onOnline = () => syncOfflineQueueNow().catch(() => {});
+    const doSync = () => {
+      syncOfflineQueueNow().catch(() => {});
+      syncChantiersOfflineNow().catch(() => {});
+    };
+    doSync();
+    const onOnline = () => doSync();
     window.addEventListener("online", onOnline);
     return () => window.removeEventListener("pageshow", onPageShow);
   }, []);
@@ -89,8 +94,22 @@ function ProtectedLayout() {
     <ProtectedRoute>
       <Navbar />
       <div className="max-w-5xl mx-auto">
-        <Outlet />
+        <OfflineRouteGuard>
+          <Outlet />
+        </OfflineRouteGuard>
       </div>
     </ProtectedRoute>
   );
+}
+
+function OfflineRouteGuard({ children }: { children: React.ReactNode }) {
+  // En offline, autorise seulement /chantiers et /chantiers/:id
+  if (typeof window !== "undefined" && !navigator.onLine) {
+    const path = window.location.pathname;
+    const allowed = /^\/chantiers(\/[0-9a-fA-F-]+)?$/.test(path);
+    if (!allowed) {
+      return <Navigate to="/chantiers" replace />;
+    }
+  }
+  return <>{children}</>;
 }

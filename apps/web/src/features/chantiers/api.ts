@@ -1,4 +1,5 @@
 import { api } from "../../lib/api";
+import { listChantiersOffline, deleteChantierOffline, trySyncChantiersQueue, getChantierOffline } from "./offline";
 
 export type Essence = { id: string; name: string };
 export type Qualite = {
@@ -54,15 +55,15 @@ export type UpdateChantier = {
 
 
 export function fetchChantiers() {
-  return api<ChantierListItem[]>("/chantiers");
+  return listChantiersOffline();
 }
 
 export function fetchChantier(id: string) {
-  return api<ChantierDetail>(`/chantiers/${id}`);
+  return getChantierOffline(id);
 }
 
 export function deleteChantier(id: string) {
-  return api<{ ok: boolean }>(`/chantiers/${id}`, { method: "DELETE" });
+  return deleteChantierOffline(id);
 }
 
 export async function updateChantier(id: string, payload: UpdateChantier) {
@@ -71,4 +72,8 @@ export async function updateChantier(id: string, payload: UpdateChantier) {
     body: JSON.stringify(payload),
   });
   return res;
+}
+
+export async function syncChantiersOfflineNow() {
+  await trySyncChantiersQueue();
 }

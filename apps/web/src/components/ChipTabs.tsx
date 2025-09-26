@@ -93,12 +93,23 @@ function MobileCompact({
 }) {
   const active = tabs.find((t) => t.id === activeId) ?? tabs[0];
   const dialogRef = useRef<HTMLDivElement | null>(null);
+  const firstBtnRef = useRef<HTMLButtonElement | null>(null);
 
   function open() {
-    dialogRef.current?.classList.remove("pointer-events-none", "opacity-0");
+    const el = dialogRef.current;
+    if (!el) return;
+    el.classList.remove("pointer-events-none", "opacity-0");
+    el.removeAttribute("aria-hidden");
+    (el as any).inert = false;
+    // focus le premier bouton
+    setTimeout(() => firstBtnRef.current?.focus(), 0);
   }
   function close() {
-    dialogRef.current?.classList.add("pointer-events-none", "opacity-0");
+    const el = dialogRef.current;
+    if (!el) return;
+    el.classList.add("pointer-events-none", "opacity-0");
+    el.setAttribute("aria-hidden", "true");
+    (el as any).inert = true;
   }
 
   return (
@@ -120,7 +131,7 @@ function MobileCompact({
         <ChevronDown className="h-4 w-4" />
       </button>
 
-      {/* Feuille (bottom-sheet) */}
+      {/* Modal centrée (mobile) */}
       <div
         ref={dialogRef}
         className={twMerge(
@@ -129,17 +140,15 @@ function MobileCompact({
         aria-hidden
       >
         <div className="absolute inset-0 bg-black/40" onClick={close} />
-        <div className="absolute left-0 right-0 bottom-0 rounded-t-2xl bg-white shadow-2xl p-4">
-          <div className="mx-auto h-1 w-10 rounded-full bg-gray-300 mb-3" />
-          <h3 className="text-center text-sm font-medium mb-2">
-            Choisir une qualité
-          </h3>
-          <div className="grid grid-cols-1 gap-2 max-h-[60vh] overflow-auto px-1">
+        <div className="absolute inset-0 flex items-center justify-center p-4">
+          <div className="w-full max-w-sm rounded-2xl bg-white shadow-2xl p-4">
+            <div className="grid grid-cols-1 gap-2 max-h-[60vh] overflow-auto px-1">
             {tabs.map((t) => {
               const active = t.id === activeId;
               return (
                 <button
                   key={t.id}
+                  ref={!active ? undefined : firstBtnRef}
                   onClick={() => {
                     onChange(t.id);
                     close();
@@ -158,14 +167,15 @@ function MobileCompact({
                 </button>
               );
             })}
-          </div>
-          <div className="mt-3 flex justify-end">
-            <button
-              onClick={close}
-              className="rounded-full border px-4 py-1.5 text-sm hover:bg-gray-50"
-            >
-              Fermer
-            </button>
+            </div>
+            <div className="mt-3 flex justify-end">
+              <button
+                onClick={close}
+                className="rounded-full border px-4 py-1.5 text-sm hover:bg-gray-50"
+              >
+                Fermer
+              </button>
+            </div>
           </div>
         </div>
       </div>

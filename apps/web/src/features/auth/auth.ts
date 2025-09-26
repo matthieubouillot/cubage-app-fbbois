@@ -4,6 +4,7 @@ export type User = {
   lastName: string;
   email: string;
   role: "BUCHERON" | "SUPERVISEUR";
+  numStart?: number;
 };
 
 const TOKEN_KEY = "auth_token";
