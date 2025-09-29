@@ -93,7 +93,7 @@ function ProtectedLayout() {
   return (
     <ProtectedRoute>
       <Navbar />
-      <div className="max-w-5xl mx-auto pt-navbar">
+      <div className="max-w-5xl mx-auto" style={{ paddingTop: "calc(56px + env(safe-area-inset-top))" }}>
         <OfflineRouteGuard>
           <Outlet />
         </OfflineRouteGuard>

@@ -172,7 +172,7 @@ export default function EditChantier() {
   return (
     <div className="px-4 py-6">
       <div className="mx-auto w-full max-w-5xl">
-        <MobileBack fallback="/chantiers" variant="inline" className="mb-3" />
+        <MobileBack fallback="/chantiers" variant="fixed" />
 
         {/* Titre centré */}
         <header className="text-center mb-6">

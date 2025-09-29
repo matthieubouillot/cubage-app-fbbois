@@ -30,7 +30,7 @@ export default function Navbar() {
   const homeHref = u?.role === "SUPERVISEUR" ? "/home" : "/chantiers";
 
   return (
-    <nav className="w-full border-b bg-white shadow-sm sticky top-0 z-50">
+    <nav className="w-full border-b bg-white shadow-sm fixed top-0 left-0 right-0 z-50">
       {/* Couche fixe qui couvre la zone safe-area iOS pour éviter que le contenu réapparaisse au-dessus */}
       <div
         aria-hidden

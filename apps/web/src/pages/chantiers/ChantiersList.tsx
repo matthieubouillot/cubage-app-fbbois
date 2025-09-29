@@ -61,11 +61,7 @@ export default function ChantiersList() {
     <div className="px-4 py-6">
       <div className="max-w-7xl mx-auto space-y-6">
         {isSupervisor && !offline && (
-          <MobileBack
-            fallback="/home"
-            variant="inline"
-            className="mb-3 md:hidden"
-          />
+          <MobileBack fallback="/home" variant="fixed" className="md:hidden" />
         )}
 
         {/* Header */}

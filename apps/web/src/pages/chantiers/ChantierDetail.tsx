@@ -101,7 +101,7 @@ export default function ChantierDetail() {
   return (
     <div className="max-w-[1200px] mx-auto px-4 lg:px-6 py-8 space-y-8">
       {/* Bouton retour mobile — juste sous la navbar */}
-      <MobileBack fallback="/chantiers" variant="inline" className="mb-3" />
+      <MobileBack fallback="/chantiers" variant="fixed" />
 
       {/* Header centré */}
       <header className="text-center space-y-1">

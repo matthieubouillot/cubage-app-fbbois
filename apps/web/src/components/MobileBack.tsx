@@ -4,7 +4,7 @@ import { twMerge } from "tailwind-merge";
 export default function MobileBack({
   fallback = "/",
   onBack,
-  variant = "inline", // "inline" (dans le flux) ou "fixed" (flottant)
+  variant = "fixed", // "inline" (dans le flux) ou "fixed" (flottant)
   className = "",
 }: {
   /** URL de repli si pas d'historique */
@@ -29,7 +29,7 @@ export default function MobileBack({
     return (
       <div
         className={twMerge(
-          "md:hidden fixed z-40 left-3 top-[calc(48px+env(safe-area-inset-top,0))]",
+          "md:hidden fixed z-40 left-3 top-[calc(env(safe-area-inset-top,0)+56px+8px)]",
           className,
         )}
       >

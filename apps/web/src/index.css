@@ -5,8 +5,8 @@
 html { -webkit-tap-highlight-color: transparent; }
 .tabular-nums { font-variant-numeric: tabular-nums; }
 
-/* Espace sous la navbar = hauteur navbar (56px) + safe-area iOS */
-.pt-navbar { padding-top: calc(56px + env(safe-area-inset-top)); }
+/* Retire l'espace entre MobileBack et Navbar: plus de spacer global */
+.pt-navbar { padding-top: 0; }
 
 /* Evite les artefacts d'empilement en mobile */
 html, body { background: #f9fafb; overflow-x: hidden; }
