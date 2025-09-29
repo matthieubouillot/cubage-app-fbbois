@@ -28,8 +28,12 @@ export default function App() {
     window.addEventListener("pageshow", onPageShow);
     // Try to sync any offline-queued changes on app show and when going back online
     const doSync = () => {
-      syncOfflineQueueNow().catch(() => {});
-      syncChantiersOfflineNow().catch(() => {});
+      syncOfflineQueueNow()
+        .then(() => window.dispatchEvent(new Event("cubage:reconnected")))
+        .catch(() => {});
+      syncChantiersOfflineNow()
+        .then(() => window.dispatchEvent(new Event("cubage:reconnected")))
+        .catch(() => {});
     };
     doSync();
     const onOnline = () => doSync();
@@ -71,7 +75,7 @@ export default function App() {
           element={
             isAuthenticated() ? (
               getUser()?.role === "SUPERVISEUR" ? (
-                <Navigate to="/home" replace />
+                navigator.onLine ? <Navigate to="/home" replace /> : <Navigate to="/chantiers" replace />
               ) : (
                 <Navigate to="/chantiers" replace />
               )

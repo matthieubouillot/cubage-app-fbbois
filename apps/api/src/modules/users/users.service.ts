@@ -24,8 +24,9 @@ async function hasOverlappingRange(
 }
 
 /** Liste triée par plage num (numStart puis numEnd). */
-export async function getUsersService() {
+export async function getUsersService(role?: Role) {
   return prisma.user.findMany({
+    where: role ? { role } : undefined,
     select: {
       id: true,
       firstName: true,

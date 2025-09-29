@@ -62,6 +62,7 @@ export async function createSaisieOffline(payload: {
     diametre: payload.diametre,
     volumeCalc: 0,
     annotation: payload.annotation ?? null,
+    user: getUser() ? { id: getUser()!.id, firstName: getUser()!.firstName, lastName: getUser()!.lastName } : undefined,
   };
   await upsertCachedSaisie(chantierId, qualiteId, optimistic as any);
   await enqueueSaisieOp(chantierId, qualiteId, {

@@ -44,6 +44,16 @@ export default function ChantierDetail() {
     })();
   }, [id]);
 
+  useEffect(() => {
+    const onReconnected = () => {
+      if (id) {
+        fetchChantier(id).then(setData).catch(() => {});
+      }
+    };
+    window.addEventListener("cubage:reconnected", onReconnected as any);
+    return () => window.removeEventListener("cubage:reconnected", onReconnected as any);
+  }, [id]);
+
   const tabs = useMemo<Tab[]>(() => {
     if (!data) return [];
     return data.qualites.map((q) => ({

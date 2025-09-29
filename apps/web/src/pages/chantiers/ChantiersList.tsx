@@ -34,11 +34,14 @@ export default function ChantiersList() {
     refresh();
     const onOnline = () => setOffline(false);
     const onOffline = () => setOffline(true);
+    const onReconnected = () => refresh();
     window.addEventListener("online", onOnline);
     window.addEventListener("offline", onOffline);
+    window.addEventListener("cubage:reconnected", onReconnected as any);
     return () => {
       window.removeEventListener("online", onOnline);
       window.removeEventListener("offline", onOffline);
+      window.removeEventListener("cubage:reconnected", onReconnected as any);
     };
   }, []);
 

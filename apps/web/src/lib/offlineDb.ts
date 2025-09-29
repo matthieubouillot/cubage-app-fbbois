@@ -102,7 +102,19 @@ export async function cacheSaisiesList(
   for (const r of rows) {
     const key = `${chantierId}:${qualiteId}:${r.id}`;
     ids.push(r.id);
-    await tx.db.put("saisies", { ...r, id: r.id, cq: indexKey }, key);
+    await tx.db.put(
+      "saisies",
+      {
+        ...r,
+        id: r.id,
+        cq: indexKey,
+        // Ensure user object is present for offline UI display
+        user: r.user && r.user.id
+          ? { id: r.user.id, firstName: r.user.firstName, lastName: r.user.lastName }
+          : r.user || null,
+      },
+      key,
+    );
   }
   await tx.db.put("saisiesIndex", { ids, updatedAt: Date.now() }, indexKey);
   await tx.done;

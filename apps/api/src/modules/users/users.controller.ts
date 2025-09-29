@@ -48,11 +48,13 @@ function requireSupervisor(
 }
 
 /** GET /users (plus de filtre par rôle) */
-export async function getUsers(_req: Request, res: Response) {
-  const gate = requireSupervisor(_req, res);
+export async function getUsers(req: Request, res: Response) {
+  const gate = requireSupervisor(req, res);
   if (!gate.ok) return;
   try {
-    const users = await getUsersService();
+    const roleParam = (req.query.role as string | undefined)?.toUpperCase();
+    const role = roleParam === "BUCHERON" || roleParam === "SUPERVISEUR" ? (roleParam as Role) : undefined;
+    const users = await getUsersService(role);
     res.json(users);
   } catch (e: any) {
     res
