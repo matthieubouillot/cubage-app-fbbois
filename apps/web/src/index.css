@@ -5,5 +5,8 @@
 html { -webkit-tap-highlight-color: transparent; }
 .tabular-nums { font-variant-numeric: tabular-nums; }
 
-/* Supprimer l'ancien spacer: on garde la navbar à sa position d'origine */
-.pt-navbar { padding-top: 56px; }
+/* Espace sous la navbar = hauteur navbar (56px) + safe-area iOS */
+.pt-navbar { padding-top: calc(56px + env(safe-area-inset-top)); }
+
+/* Evite les artefacts d'empilement en mobile */
+html, body { background: #f9fafb; overflow-x: hidden; }

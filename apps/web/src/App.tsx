@@ -38,7 +38,7 @@ export default function App() {
   }, []);
 
   return (
-    <div className="min-h-screen bg-gray-50 pt-navbar">
+    <div className="min-h-screen bg-gray-50">
       <Routes>
         {/* Public */}
         <Route path="/login" element={<LoginPage />} />
@@ -93,7 +93,7 @@ function ProtectedLayout() {
   return (
     <ProtectedRoute>
       <Navbar />
-      <div className="max-w-5xl mx-auto">
+      <div className="max-w-5xl mx-auto pt-navbar">
         <OfflineRouteGuard>
           <Outlet />
         </OfflineRouteGuard>
