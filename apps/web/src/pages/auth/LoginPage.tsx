@@ -101,16 +101,6 @@ export default function LoginPage() {
             </Link>
           </div>
         </form>
-
-        {/* Aide / comptes seed */}
-        <div className="mt-4 text-center text-xs text-gray-500">
-          Astuce : compte seedé
-          <br />
-          <code className="bg-gray-100 px-1 rounded">
-          donovantracoulat82@gmail.com
-          </code>{" "}
-          / <code className="bg-gray-100 px-1 rounded">fbbois2025!</code>
-        </div>
       </div>
     </div>
   );
