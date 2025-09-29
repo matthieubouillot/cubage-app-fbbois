@@ -1,4 +1,4 @@
-const CACHE = "cubage-shell-v2";
+const CACHE = "cubage-shell-v3";
 const APP_SHELL = [
   "/",
   "/index.html",
@@ -22,19 +22,48 @@ self.addEventListener("activate", (e) => {
 });
 
 self.addEventListener("fetch", (e) => {
-  const url = new URL(e.request.url);
-  if (e.request.method !== "GET") return;
-  // App Shell: network first for HTML, cache fallback
-  if (url.origin === self.location.origin && url.pathname === "/index.html") {
+  const req = e.request;
+  const url = new URL(req.url);
+  if (req.method !== "GET") return;
+
+  // Handle navigations: always serve the SPA shell
+  if (req.mode === "navigate" && url.origin === self.location.origin) {
     e.respondWith(
-      fetch(e.request).catch(() => caches.match("/index.html")),
+      caches.match("/index.html").then((cached) =>
+        cached || fetch("/index.html").then((res) => {
+          // Cache the shell for next time
+          const resClone = res.clone();
+          caches.open(CACHE).then((c) => c.put("/index.html", resClone));
+          return res;
+        }).catch(() => caches.match("/index.html"))
+      ),
     );
     return;
   }
-  // Static: cache first, network fallback
-  e.respondWith(
-    caches.match(e.request).then((cached) => cached || fetch(e.request)),
-  );
+
+  // For same-origin assets: cache-first with runtime fill
+  if (url.origin === self.location.origin) {
+    e.respondWith(
+      caches.match(req).then((cached) => {
+        if (cached) return cached;
+        return fetch(req)
+          .then((res) => {
+            const resClone = res.clone();
+            caches.open(CACHE).then((c) => c.put(req, resClone));
+            return res;
+          })
+          .catch(() => {
+            // If request was for the shell specifically
+            if (url.pathname === "/index.html") return caches.match("/index.html");
+            return undefined;
+          });
+      }),
+    );
+    return;
+  }
+
+  // Cross-origin: try cache then network, no caching
+  e.respondWith(caches.match(req).then((c) => c || fetch(req)));
 });
 
 

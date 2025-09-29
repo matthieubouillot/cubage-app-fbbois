@@ -1,4 +1,4 @@
-export const API_URL = import.meta.env.VITE_API_URL as string;
+export const API_URL = (import.meta.env.VITE_API_URL as string) || "";
 
 export async function api<T>(path: string, options: RequestInit = {}): Promise<T> {
   // Construire des headers sûrs
@@ -7,7 +7,9 @@ export async function api<T>(path: string, options: RequestInit = {}): Promise<T
   const token = localStorage.getItem("auth_token");
   if (token) finalHeaders.set("Authorization", `Bearer ${token}`);
 
-  const res = await fetch(`${API_URL}${path}`, {
+  const base = API_URL || (typeof window !== "undefined" ? window.location.origin.replace(/\/$/, "") : "");
+  const url = `${base}${path}`;
+  const res = await fetch(url, {
     ...options,
     headers: finalHeaders,
   });
