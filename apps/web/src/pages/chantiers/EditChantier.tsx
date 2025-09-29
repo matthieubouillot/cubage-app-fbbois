@@ -1,4 +1,3 @@
-// apps/web/src/pages/chantiers/EditChantier.tsx
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { twMerge } from "tailwind-merge";

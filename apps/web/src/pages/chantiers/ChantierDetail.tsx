@@ -1,4 +1,3 @@
-// apps/web/src/pages/chantiers/ChantierDetail.tsx
 import React, { useEffect, useMemo, useState } from "react";
 import { useParams } from "react-router-dom";
 

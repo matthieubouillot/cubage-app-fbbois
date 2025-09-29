@@ -1,4 +1,3 @@
-// apps/web/src/components/StatsTable.tsx
 import React from "react";
 import { twMerge } from "tailwind-merge";
 import type { SaisieStats } from "../features/saisies/api";

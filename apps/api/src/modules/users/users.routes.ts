@@ -1,4 +1,3 @@
-// apps/api/src/modules/users/users.routes.ts
 import { Router } from "express";
 import {
   getUsers,

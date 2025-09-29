@@ -1,4 +1,3 @@
-// apps/web/src/pages/chantiers/CreateChantier.tsx
 import { useEffect, useMemo, useState } from "react";
 import { api } from "../../lib/api";
 import { twMerge } from "tailwind-merge";

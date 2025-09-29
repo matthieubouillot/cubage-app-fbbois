@@ -1,4 +1,3 @@
-// apps/web/src/pages/auth/LoginPage.tsx
 import { useState } from "react";
 import { Link } from "react-router-dom";
 import { loginRequest } from "../../features/auth/api";

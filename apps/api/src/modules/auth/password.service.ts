@@ -1,4 +1,3 @@
-// apps/api/src/modules/auth/password-reset.service.ts
 import { prisma } from "../../prisma";
 import crypto from "crypto";
 import * as bcrypt from "bcryptjs";

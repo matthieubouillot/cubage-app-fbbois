@@ -1,4 +1,3 @@
-// apps/web/src/App.tsx
 import { Routes, Route, Navigate, Outlet } from "react-router-dom";
 import { useEffect } from "react";
 import LoginPage from "./pages/auth/LoginPage";

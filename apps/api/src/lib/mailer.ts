@@ -1,4 +1,3 @@
-// apps/api/src/lib/mailer.ts
 import nodemailer from "nodemailer";
 
 const FROM_EMAIL = process.env.GMAIL_USER!;
