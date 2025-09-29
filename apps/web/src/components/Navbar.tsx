@@ -30,7 +30,7 @@ export default function Navbar() {
   const homeHref = u?.role === "SUPERVISEUR" ? "/home" : "/chantiers";
 
   return (
-    <nav className="w-full border-b bg-white shadow-sm sticky top-0 z-50">
+    <nav className="w-full border-b bg-white shadow-sm sticky top-0 z-50" style={{ paddingTop: "env(safe-area-inset-top)" }}>
       <div className="relative h-14 px-3 sm:px-6 flex items-center justify-between">
         {/* GAUCHE : Logo + titre (mobile) */}
         <div className="flex items-center gap-2">

@@ -4,3 +4,8 @@
 /* optionnel */
 html { -webkit-tap-highlight-color: transparent; }
 .tabular-nums { font-variant-numeric: tabular-nums; }
+
+/* Safe area + navbar spacer for iOS notch/status bar */
+.pt-navbar {
+  padding-top: calc(env(safe-area-inset-top) + 56px);
+}
