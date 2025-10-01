@@ -184,7 +184,7 @@ export default function ChantiersList() {
                 <div className="mt-4 flex items-center justify-center gap-3">
   <Link
     to={`/chantiers/${r.id}`}
-    className={iosIconBtn + " h-[30px] w-[30px]"}
+    className={iosIconBtn + " h-[36px] w-[36px]"}
     aria-label="Ouvrir"
     title="Ouvrir"
   >
@@ -195,7 +195,7 @@ export default function ChantiersList() {
     <>
       <Link
         to={`/chantiers/${r.id}/modifier`}
-        className={iosIconBtnLight + " h-[30px] w-[30px]"}
+        className={iosIconBtnLight + " h-[36px] w-[36px]"}
         aria-label="Modifier"
         title="Modifier"
       >
@@ -206,7 +206,7 @@ export default function ChantiersList() {
         onClick={() => onDelete(r.id)}
         disabled={deletingId === r.id}
         className={twMerge(
-          iosIconBtnDanger + " h-[30px] w-[30px]",
+          iosIconBtnDanger + " h-[36px] w-[36px]",
           deletingId === r.id && "opacity-60 cursor-wait",
         )}
         aria-label="Supprimer"
@@ -337,7 +337,7 @@ export default function ChantiersList() {
   <button
     onClick={() => nav("/chantiers/nouveau")}
     className={twMerge(
-      "inline-flex items-center justify-center rounded-full bg-black text-white h-[30px] w-[30px] shadow-[0_6px_16px_rgba(0,0,0,0.15)] active:scale-[0.98] transition fixed bottom-6 right-6 z-40 md:hidden",
+      "inline-flex items-center justify-center rounded-full bg-black text-white h-[36px] w-[36px] shadow-[0_6px_16px_rgba(0,0,0,0.15)] active:scale-[0.98] transition fixed bottom-6 right-6 z-40 md:hidden",
     )}
     aria-label="Nouveau chantier"
     title="Nouveau chantier"
