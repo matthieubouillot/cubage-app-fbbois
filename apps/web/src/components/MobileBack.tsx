@@ -18,12 +18,13 @@ export default function MobileBack({
 
   function goBack() {
     if (onBack) return onBack();
-    nav(fallback, { replace: true }); 
+    nav(fallback, { replace: true });
   }
 
+  // Même style/tailles que les autres boutons ronds (30x30)
   const baseBtn =
     "inline-flex items-center justify-center rounded-full bg-white text-gray-900 " +
-    "border border-gray-300 w-8 h-8 shadow-sm active:scale-[0.98]";
+    "border border-gray-300 w-[30px] h-[30px] shadow-sm active:scale-[0.98]";
 
   if (variant === "fixed") {
     return (

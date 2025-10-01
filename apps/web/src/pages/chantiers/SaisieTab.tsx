@@ -161,9 +161,12 @@ function Modal({
           maxWidth,
         )}
       >
-        <div className="p-4 border-b flex items-center justify-between">
-          <h3 className="text-base font-semibold">{title}</h3>
-          <button onClick={onClose} className="text-gray-500 hover:text-black">
+        <div className="p-4 border-b relative">
+          <h3 className="text-base font-semibold text-center">{title}</h3>
+          <button
+            onClick={onClose}
+            className="text-gray-500 hover:text-black absolute right-4 top-1/2 -translate-y-1/2"
+          >
             ✕
           </button>
         </div>
@@ -320,14 +323,17 @@ export default function SaisieTab({
         <BtnPrimary onClick={openAdd}>Ajouter une saisie</BtnPrimary>
       </div>
 
-      {/* FAB mobile — identique UsersPage */}
+      {/* FAB mobile */}
       <button
         onClick={openAdd}
-        className={twMerge(iosIconBtn, "fixed bottom-6 right-6 z-40 lg:hidden")}
+        className={twMerge(
+          iosIconBtn,
+          "fixed bottom-6 left-1/2 -translate-x-1/2 z-40 lg:hidden h-9 w-9"
+        )}
         aria-label="Ajouter une saisie"
         title="Ajouter une saisie"
       >
-        <PlusIcon className="h-6 w-6" />
+        <PlusIcon className="h-4 w-4" />
       </button>
 
       {/* tableau desktop */}
@@ -335,7 +341,7 @@ export default function SaisieTab({
         <table className="text-sm table-fixed">
           <colgroup>
             <col className="w-[7%]" />
-            <col className="w-[10%]" />
+            <col className="w-[12%]" />
             <col className="w-[10%]" />
             <col className="w-[10%]" />
             <col className="w-[14%]" />
@@ -349,7 +355,7 @@ export default function SaisieTab({
               <Th>N°</Th>
               <Th>Date</Th>
               <Th>LONG.</Th>
-              <Th>DIAM</Th>
+              <Th>DIAM.</Th>
               <Th>vol. &lt; V1</Th>
               <Th>V1 ≤ vol. &lt; V2</Th>
               <Th>vol. ≥ V2</Th>
@@ -381,14 +387,14 @@ export default function SaisieTab({
                   <Td title={`${who}`} className="tabular-nums">
                     {r.numero}
                   </Td>
-                  <Td className="tabular-nums">{fmtDate(r.date)}</Td>
+                  <Td className="tabular-nums whitespace-nowrap">{fmtDate(r.date)}</Td>
                   <Td className="tabular-nums">
                     {Number(r.longueur).toLocaleString("fr-FR")}
                   </Td>
                   <Td className="tabular-nums">
                     {Number(r.diametre).toLocaleString("fr-FR")}
                   </Td>
-                {renderVolCells(r, ecorcePercent)}
+                  {renderVolCellsDesktop(r, ecorcePercent)}
                   <Td className="max-w-[320px]">
                     <span
                       className="truncate inline-block w-full"
@@ -420,80 +426,70 @@ export default function SaisieTab({
         </table>
       </div>
 
-      {/* cartes mobile (style iOS pour les actions) */}
-      <div className="lg:hidden space-y-3">
-        {!rows && (
-          <div className="text-center py-3 text-gray-600 bg-white border rounded-xl">
-            Chargement…
-          </div>
-        )}
-        {rows && rows.length === 0 && (
-          <div className="text-center py-3 text-gray-600 bg-white border rounded-xl">
-            Aucune saisie.
-          </div>
-        )}
-        {rows?.map((r) => (
-          <div key={r.id} className="bg-white border rounded-xl p-3 shadow-sm">
-            <div className="flex items-center justify-between">
-              <div className="text-sm text-gray-500">
-                N° {r.numero}
-                {r.user && (
-                  <span className="text-gray-400">
-                    {" "}
-                    — {r.user.firstName} {r.user.lastName}
-                  </span>
-                )}
-              </div>
-              <div className="text-xs text-gray-500">{fmtDate(r.date)}</div>
-            </div>
-
-            {/* LONG + DIAM */}
-            <div className="mt-2 grid grid-cols-2 gap-2 text-sm text-center">
-              <Info
-                label="LONG."
-                value={Number(r.longueur).toLocaleString("fr-FR")}
-              />
-              <Info
-                label="DIAM."
-                value={Number(r.diametre).toLocaleString("fr-FR")}
-              />
-            </div>
-
-            {/* V1 strip */}
-            <div className="mt-2 grid grid-cols-3 gap-2 text-sm">
-              {renderVolCards(r, ecorcePercent)}
-            </div>
-
-            {/* Annotation */}
-            <div className="mt-2">
-              <Info
-                label="Annotation"
-                value={r.annotation || "—"}
-                className="w-full"
-              />
-            </div>
-
-            {/* Actions iOS centrées */}
-            <div className="mt-3 flex items-center justify-center gap-3">
-              <button
-                className={iosIconBtnLight}
-                onClick={() => openEdit(r)}
-                aria-label="Modifier"
-                title="Modifier"
-              >
-                <PencilIcon className="h-5 w-5" />
-              </button>
-              <button
-                className={iosIconBtnDanger}
-                onClick={() => remove(r.id)}
-                aria-label="Supprimer"
-                title="Supprimer"
-              >
-                <TrashIcon className="h-5 w-5" />
-              </button>
-            </div>
-          </div>
-        ))}
+      {/* tableau mobile (compact) */}
+      <div className="lg:hidden mx-auto bg-white border rounded-xl overflow-hidden shadow-sm">
+        <table className="w-full text-sm">
+          <colgroup>
+            <col className="w-[16%]" />
+            <col className="w-[24%]" />
+            <col className="w-[24%]" />
+            <col className="w-[20%]" />
+            <col className="w-[16%]" />
+          </colgroup>
+          <thead className="bg-gray-50">
+            <tr>
+              <Th>N°</Th>
+              <Th>LONG.</Th>
+              <Th>DIAM.</Th>
+              <Th>V.</Th>
+              <Th>Actions</Th>
+            </tr>
+          </thead>
+          <tbody className="[&>tr:nth-child(odd)]:bg-gray-50/60">
+            {!rows && (
+              <tr>
+                <Td colSpan={6} className="py-3 text-gray-600">
+                  Chargement…
+                </Td>
+              </tr>
+            )}
+            {rows && rows.length === 0 && (
+              <tr>
+                <Td colSpan={6} className="py-3 text-gray-600">
+                  Aucune saisie.
+                </Td>
+              </tr>
+            )}
+            {rows?.map((r) => (
+              <tr key={r.id} className="border-b border-gray-100">
+                <Td className="tabular-nums">{r.numero}</Td>
+                <Td className="tabular-nums">{Number(r.longueur).toLocaleString("fr-FR")}</Td>
+                <Td className="tabular-nums">{Number(r.diametre).toLocaleString("fr-FR")}</Td>
+                {renderVolCellMobile(r, ecorcePercent)}
+                <Td>
+                  <div className="flex items-center justify-center gap-2">
+                    <button
+                      className={twMerge(iosIconBtnLight, "h-9 w-9")}
+                      onClick={() => openEdit(r)}
+                      aria-label="Modifier"
+                      title="Modifier"
+                    >
+                      <PencilIcon className="h-4 w-4" />
+                    </button>
+                    <button
+                      className={twMerge(iosIconBtnDanger, "h-9 w-9")}
+                      onClick={() => remove(r.id)}
+                      aria-label="Supprimer"
+                      title="Supprimer"
+                    >
+                      <TrashIcon className="h-4 w-4" />
+                    </button>
+                  </div>
+                </Td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
       </div>
 
       {err && <div className="text-center text-sm text-red-600">{err}</div>}
@@ -547,6 +543,9 @@ export default function SaisieTab({
         onSubmit={submitEdit}
         maxWidth="max-w-md"
       >
+        <div className="space-y-2 mb-2 text-xs text-gray-600 text-center">
+          {showEdit && <div>{fmtDate(showEdit.date)}</div>}
+        </div>
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
           <LabeledInput
             label="LONG. (m)"
@@ -640,7 +639,7 @@ function getVolGeV2(r: SaisieRow, ecorcePercent: number) {
   return vol >= 0.5 ? vol : 0;
 }
 
-function renderVolCells(r: SaisieRow, ecorcePercent: number) {
+function renderVolCellsDesktop(r: SaisieRow, ecorcePercent: number) {
   const a = getVolLtV1(r, ecorcePercent);
   const b = getVolBetween(r, ecorcePercent);
   const c = getVolGeV2(r, ecorcePercent);
@@ -650,6 +649,21 @@ function renderVolCells(r: SaisieRow, ecorcePercent: number) {
     <Td key="c" className="tabular-nums">{c ? fmt3(c) : ""}</Td>,
   ];
   return cells;
+}
+function renderVolCellMobile(r: SaisieRow, ecorcePercent: number) {
+  const vol = r.volumeCalc && r.volumeCalc > 0
+    ? r.volumeCalc
+    : computeVolNet(r.longueur, r.diametre, ecorcePercent);
+  return (
+    <Td className="tabular-nums">
+      <div className="flex flex-col items-center leading-tight">
+        <div>{fmt3(vol)}</div>
+        {r.annotation ? (
+          <span className="mt-0.5 inline-block h-1.5 w-1.5 rounded-full bg-amber-500" />
+        ) : null}
+      </div>
+    </Td>
+  );
 }
 
 function renderVolCards(r: SaisieRow, ecorcePercent: number) {

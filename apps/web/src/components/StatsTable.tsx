@@ -7,9 +7,13 @@ import type { SaisieStats } from "../features/saisies/api";
 export default function StatsTable({
   stats,
   className = "",
+  todayUser,
+  isSupervisor = false,
 }: {
   stats: SaisieStats | null;
   className?: string;
+  todayUser?: { ltV1: number; between: number; geV2: number; total: number } | null;
+  isSupervisor?: boolean;
 }) {
   const fmt = (n?: number) =>
     (n ?? 0).toLocaleString("fr-FR", {
@@ -32,66 +36,85 @@ export default function StatsTable({
 
           <thead className="bg-gray-50">
             <tr className="text-center">
-              <th className="px-3 py-2 border-b text-gray-600 font-medium"></th>
-              <th className="px-3 py-2 border-b text-gray-600 font-medium">
+              <th className="px-3 py-2 border-b border-gray-200 text-gray-600 font-medium"></th>
+              <th className="px-3 py-2 border-b border-gray-200 text-gray-600 font-medium">
                 vol. &lt; V1
               </th>
-              <th className="px-3 py-2 border-b text-gray-600 font-medium">
+              <th className="px-3 py-2 border-b border-gray-200 text-gray-600 font-medium">
                 V1 ≤ vol. &lt; V2
               </th>
-              <th className="px-3 py-2 border-b text-gray-600 font-medium">
+              <th className="px-3 py-2 border-b border-gray-200 text-gray-600 font-medium">
                 vol. ≥ V2
               </th>
-              <th className="px-3 py-2 border-b text-gray-600 font-medium">
+              <th className="px-3 py-2 border-b border-gray-200 text-gray-600 font-medium">
                 Total
               </th>
             </tr>
           </thead>
 
           <tbody>
+            {/* Ordre: V. total (tous), V. total, Nb., V. moy, V. jour */}
+            {!isSupervisor && (
+              <tr className="text-center">
+                <td className="px-3 py-2 border-b border-gray-200 text-left">V. total (tous)</td>
+                <td className="px-3 py-2 border-b border-gray-200 tabular-nums">{fmt(stats?.columns.ltV1.sum)} m³</td>
+                <td className="px-3 py-2 border-b border-gray-200 tabular-nums">{fmt(stats?.columns.between.sum)} m³</td>
+                <td className="px-3 py-2 border-b border-gray-200 tabular-nums">{fmt(stats?.columns.geV2.sum)} m³</td>
+                <td className="px-3 py-2 border-b border-gray-200 tabular-nums">{fmt(stats?.total.sum)} m³</td>
+              </tr>
+            )}
             <tr className="text-center">
-              <td className="px-3 py-2 border-b text-left">V. total</td>
-              <td className="px-3 py-2 border-b tabular-nums">
+              <td className="px-3 py-2 border-b border-gray-200 text-left">V. total</td>
+              <td className="px-3 py-2 border-b border-gray-200 tabular-nums">
                 {fmt(stats?.columns.ltV1.sum)} m³
               </td>
-              <td className="px-3 py-2 border-b tabular-nums">
+              <td className="px-3 py-2 border-b border-gray-200 tabular-nums">
                 {fmt(stats?.columns.between.sum)} m³
               </td>
-              <td className="px-3 py-2 border-b tabular-nums">
+              <td className="px-3 py-2 border-b border-gray-200 tabular-nums">
                 {fmt(stats?.columns.geV2.sum)} m³
               </td>
-              <td className="px-3 py-2 border-b tabular-nums">
+              <td className="px-3 py-2 border-b border-gray-200 tabular-nums">
                 {fmt(stats?.total.sum)} m³
               </td>
             </tr>
             <tr className="text-center">
-              <td className="px-3 py-2 border-b text-left">Nb.</td>
-              <td className="px-3 py-2 border-b">
+              <td className="px-3 py-2 border-b border-gray-200 text-left">Nb.</td>
+              <td className="px-3 py-2 border-b border-gray-200">
                 {stats?.columns.ltV1.count ?? 0}
               </td>
-              <td className="px-3 py-2 border-b">
+              <td className="px-3 py-2 border-b border-gray-200">
                 {stats?.columns.between.count ?? 0}
               </td>
-              <td className="px-3 py-2 border-b">
+              <td className="px-3 py-2 border-b border-gray-200">
                 {stats?.columns.geV2.count ?? 0}
               </td>
-              <td className="px-3 py-2 border-b">{stats?.total.count ?? 0}</td>
+              <td className="px-3 py-2 border-b border-gray-200">{stats?.total.count ?? 0}</td>
             </tr>
             <tr className="text-center">
-              <td className="px-3 py-2 text-left">V. moy</td>
-              <td className="px-3 py-2 tabular-nums">
+              <td className="px-3 py-2 border-b border-gray-200 text-left">V. moy</td>
+              <td className="px-3 py-2 border-b border-gray-200 tabular-nums">
                 {fmt(stats?.columns.ltV1.avg)} m³
               </td>
-              <td className="px-3 py-2 tabular-nums">
+              <td className="px-3 py-2 border-b border-gray-200 tabular-nums">
                 {fmt(stats?.columns.between.avg)} m³
               </td>
-              <td className="px-3 py-2 tabular-nums">
+              <td className="px-3 py-2 border-b border-gray-200 tabular-nums">
                 {fmt(stats?.columns.geV2.avg)} m³
               </td>
-              <td className="px-3 py-2 tabular-nums">
+              <td className="px-3 py-2 border-b border-gray-200 tabular-nums">
                 {fmt(stats?.total.avg)} m³
               </td>
             </tr>
+            {!isSupervisor && (
+              <tr className="text-center">
+                <td className="px-3 py-2 border-b border-gray-200 text-left">V. jour</td>
+                <td className="px-3 py-2 border-b border-gray-200 tabular-nums">{fmt(todayUser?.ltV1)} m³</td>
+                <td className="px-3 py-2 border-b border-gray-200 tabular-nums">{fmt(todayUser?.between)} m³</td>
+                <td className="px-3 py-2 border-b border-gray-200 tabular-nums">{fmt(todayUser?.geV2)} m³</td>
+                <td className="px-3 py-2 border-b border-gray-200 tabular-nums">{fmt(todayUser?.total)} m³</td>
+              </tr>
+            )}
           </tbody>
         </table>
       </div>

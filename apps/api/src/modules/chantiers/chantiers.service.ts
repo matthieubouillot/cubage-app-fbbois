@@ -67,6 +67,7 @@ export async function createChantierService(input: CreateInput) {
         lieuDit: true,
         section: true,
         parcel: true,
+        createdAt: true,
       },
     });
 
@@ -91,6 +92,7 @@ export async function createChantierService(input: CreateInput) {
         lieuDit: true,
         section: true,
         parcel: true,
+        createdAt: true,
         essences: { select: { essence: { select: { id: true, name: true } } } },
         qualites: {
           select: {
@@ -124,6 +126,7 @@ export async function createChantierService(input: CreateInput) {
       lieuDit: full.lieuDit,
       section: full.section,
       parcel: full.parcel,
+      createdAt: full.createdAt,
       essences: full.essences.map((e) => e.essence),
       qualites: full.qualites.map((q) => q.qualite),
       bucherons: full.assignments
@@ -286,17 +289,18 @@ export async function listChantiersService(user: {
 
   const rows = await prisma.chantier.findMany({
     where,
-    orderBy: [{ createdAt: "asc" }, { referenceLot: "asc" }],
+    orderBy: [{ createdAt: "desc" }, { referenceLot: "asc" }],
     select: {
       id: true,
       referenceLot: true,
+      convention: true,
       proprietaire: true,
       proprietaireFirstName: true,
       commune: true,
       lieuDit: true,
       section: true,
       parcel: true,
-      // createdAt non nécessaire côté UI si on ne l’affiche pas, on peut l’omettre
+      createdAt: true,
       essences: { select: { essence: { select: { id: true, name: true } } } },
       qualites: {
         select: {
@@ -318,12 +322,14 @@ export async function listChantiersService(user: {
   return rows.map((r) => ({
     id: r.id,
     referenceLot: r.referenceLot,
+    convention: r.convention,
     proprietaire: r.proprietaire,
     proprietaireFirstName: r.proprietaireFirstName,
     commune: r.commune,
     lieuDit: r.lieuDit,
     section: r.section,
     parcel: r.parcel,
+    createdAt: r.createdAt,
     essences: r.essences.map((e) => e.essence),
     qualites: r.qualites.map((q) => q.qualite),
     bucherons: r.assignments
@@ -357,6 +363,7 @@ export async function getChantierByIdService(
       lieuDit: true,
       section: true,
       parcel: true,
+      createdAt: true,
       essences: { select: { essence: { select: { id: true, name: true } } } },
       qualites: {
         select: {
@@ -392,6 +399,7 @@ export async function getChantierByIdService(
     lieuDit: r.lieuDit,
     section: r.section,
     parcel: r.parcel,
+    createdAt: r.createdAt,  
     essences: r.essences.map((e) => e.essence),
     qualites: r.qualites.map((q) => q.qualite),
     bucherons: r.assignments

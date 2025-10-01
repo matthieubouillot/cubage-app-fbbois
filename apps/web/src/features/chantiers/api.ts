@@ -13,12 +13,14 @@ export type Bucheron = { id: string; firstName: string; lastName: string };
 export type ChantierListItem = {
   id: string;
   referenceLot: string;
+  convention: string;
   proprietaire: string;
   proprietaireFirstName: string ;
   commune: string;
   lieuDit: string ;
   section: string ;
   parcel: string ;
+  createdAt: string;
   essences: { id: string; name: string }[];
   qualites: { id: string; name: string; essence: { id: string } }[];
   bucherons: { id: string; firstName: string; lastName: string }[];
@@ -37,6 +39,7 @@ export type ChantierDetail = {
   essences: Essence[];
   qualites: Qualite[];
   bucherons: Bucheron[];
+  createdAt: string;
 };
 
 export type UpdateChantier = {
