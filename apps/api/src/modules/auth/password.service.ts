@@ -15,56 +15,54 @@ export async function requestPasswordReset(email: string) {
     select: { id: true, email: true, firstName: true, lastName: true },
   });
 
-  // Toujours "ok" (ne révèle pas si l'email existe)
+  // Toujours "ok" pour ne pas révéler l’existence du compte
   if (!user) return { ok: true };
 
-  // Invalider les anciens tokens non utilisés
   await prisma.passwordResetToken.updateMany({
     where: { userId: user.id, usedAt: null },
     data: { usedAt: new Date() },
   });
 
-  const token = makeToken();
+  const token = crypto.randomBytes(32).toString("hex");
   const expiresAt = new Date(Date.now() + RESET_TTL_MINUTES * 60 * 1000);
 
   await prisma.passwordResetToken.create({
     data: { userId: user.id, token, expiresAt },
   });
 
-  const resetUrl = `${
-    process.env.WEB_BASE_URL ?? "http://localhost:5173"
-  }/reset-password?token=${encodeURIComponent(token)}`;
+  const resetUrl = `${process.env.WEB_BASE_URL ?? "https://bouillapp.fr"}/reset-password?token=${encodeURIComponent(token)}`;
 
   const subject = "Réinitialisation de votre mot de passe";
   const html = `
-    <div style="font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif;line-height:1.45">
-      <h2 style="margin:0 0 12px">${process.env.MAIL_FROM_NAME ?? "Gestion de Cubage"}</h2>
-      <p>Bonjour ${user.firstName ?? ""} ${user.lastName ?? ""},</p>
-      <p>Vous avez demandé la réinitialisation de votre mot de passe.</p>
-      <p>
-        <a href="${resetUrl}" style="display:inline-block;background:#000;color:#fff;padding:10px 16px;border-radius:999px;text-decoration:none">
-          Réinitialiser mon mot de passe
-        </a>
-      </p>
-      <p>Ce lien expire dans ${RESET_TTL_MINUTES} minutes.</p>
-      <p style="color:#6b7280">Si vous n'êtes pas à l'origine de cette demande, ignorez cet e-mail.</p>
-    </div>
-  `.trim();
+  <div style="font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif;line-height:1.45">
+    <h2 style="margin:0 0 12px">${process.env.MAIL_FROM_NAME ?? "Gestion de Cubage"}</h2>
+    <p>Bonjour ${user.firstName ?? ""} ${user.lastName ?? ""},</p>
+    <p>Vous avez demandé la réinitialisation de votre mot de passe.</p>
+    <p>
+      <a href="${resetUrl}" style="display:inline-block;background:#000;color:#fff;padding:10px 16px;border-radius:999px;text-decoration:none">
+        Réinitialiser mon mot de passe
+      </a>
+    </p>
+    <p>Ce lien expire dans ${RESET_TTL_MINUTES} minutes.</p>
+    <p style="color:#6b7280">Si vous n'êtes pas à l'origine de cette demande, ignorez cet e-mail.</p>
+  </div>
+`.trim();
 
-  const text =
-    `Bonjour ${user.firstName ?? ""} ${user.lastName ?? ""},\n\n` +
-    `Pour réinitialiser votre mot de passe (valide ${RESET_TTL_MINUTES} minutes) :\n` +
-    `${resetUrl}\n\n` +
-    `Si vous n'êtes pas à l'origine de cette demande, ignorez cet e-mail.`;
+const text =
+  `Bonjour ${user.firstName ?? ""} ${user.lastName ?? ""},\n\n` +
+  `Pour réinitialiser votre mot de passe (valide ${RESET_TTL_MINUTES} minutes) :\n` +
+  `${resetUrl}\n\n` +
+  `Si vous n'êtes pas à l'origine de cette demande, ignorez cet e-mail.`;
 
-  try {
-    await sendMail({ to: user.email, subject, html, text });
-  } catch (err) {
-    // On n'échoue pas côté API, on log juste pour suivi
-    // eslint-disable-next-line no-console
-    console.error("[MAILER] Échec d'envoi du reset password:", err);
-  }
+  (async () => {
+    try {
+      await sendMail({ to: user.email, subject, html, text });
+    } catch (err) {
+      console.error("[MAILER] Échec d'envoi du reset password:", err);
+    }
+  })();
 
+  // Répondre immédiatement
   return { ok: true };
 }
 

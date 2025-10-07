@@ -10,7 +10,6 @@ import saisieRoutes from "./modules/saisies/saisies.routes";
 
 const app = express();
 
-// CORS: allow requests from any origin (reflect origin). Adjust if you need to restrict.
 app.use(
   cors({
     origin: true,

@@ -1,18 +1,12 @@
-import nodemailer from "nodemailer";
+import { Resend } from "resend";
 
-const FROM_EMAIL = process.env.GMAIL_USER!;
+const FROM_EMAIL = process.env.RESEND_FROM_EMAIL || "noreply@votre-domaine.com";
 const FROM_NAME = process.env.MAIL_FROM_NAME ?? "Gestion de Cubage";
 
 /**
- * Transporter Gmail (compte + mot de passe d'application)
+ * Client Resend
  */
-const transporter = nodemailer.createTransport({
-  service: "gmail",
-  auth: {
-    user: process.env.GMAIL_USER,
-    pass: process.env.GMAIL_APP_PASSWORD,
-  },
-});
+const resend = new Resend(process.env.RESEND_API_KEY);
 
 /**
  * Envoi générique d'email
@@ -25,7 +19,7 @@ export async function sendMail(params: {
 }) {
   const { to, subject, html, text } = params;
 
-  await transporter.sendMail({
+  await resend.emails.send({
     from: `"${FROM_NAME}" <${FROM_EMAIL}>`,
     to,
     subject,
