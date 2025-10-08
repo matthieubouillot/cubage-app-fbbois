@@ -102,10 +102,11 @@ export async function getSaisiesStats(req: Request, res: Response) {
   };
   const chantierId = req.query.chantierId as string;
   const qualiteId = req.query.qualiteId as string;
+  const global = req.query.global === "true";
   if (!chantierId || !qualiteId)
     return res.status(400).json({ error: "chantierId et qualiteId requis" });
   try {
-    const data = await getSaisiesStatsService(auth, { chantierId, qualiteId });
+    const data = await getSaisiesStatsService(auth, { chantierId, qualiteId, global });
     res.json(data);
   } catch (e: any) {
     res.status(400).json({ error: e.message || "Stats indisponibles" });

@@ -22,6 +22,8 @@ export default function ChantierDetail() {
 
   const [active, setActive] = useState<string | null>(null);
   const [stats, setStats] = useState<SaisieStats | null>(null);
+  const [globalStats, setGlobalStats] = useState<SaisieStats | null>(null);
+  const [userStats, setUserStats] = useState<SaisieStats | null>(null);
   const [todayUser, setTodayUser] = useState<{
     ltV1: number;
     between: number;
@@ -97,6 +99,8 @@ export default function ChantierDetail() {
     (async () => {
       if (!data || !activeQualite) {
         setStats(null);
+        setGlobalStats(null);
+        setUserStats(null);
         setTodayUser(null);
         return;
       }
@@ -107,7 +111,26 @@ export default function ChantierDetail() {
           activeQualite.pourcentageEcorce ?? 0,
         );
         setStats(s);
-        // Compute per-user today volume by category from rows
+        
+        // Récupérer les statistiques globales pour les bûcherons
+        const currentUser = getUser();
+        if (currentUser?.role === "BUCHERON") {
+          try {
+            const gs = await getSaisiesStats(
+              data.id,
+              activeQualite.id,
+              activeQualite.pourcentageEcorce ?? 0,
+              true, // global = true
+            );
+            setGlobalStats(gs);
+          } catch {
+            setGlobalStats(null);
+          }
+        } else {
+          setGlobalStats(s); // Les superviseurs voient déjà les stats globales
+        }
+        
+        // Récupérer les rows pour les calculs suivants
         const rows = await listSaisies(data.id, activeQualite.id);
         const current = getUser();
         const toLocalYmd = (d: Date) => {
@@ -135,6 +158,52 @@ export default function ChantierDetail() {
           geV2: tGe,
           total: tLt + tBt + tGe,
         });
+
+        // Calculer les statistiques du bûcheron connecté
+        if (currentUser && rows.length > 0) {
+          let userLtV1 = 0, userBetween = 0, userGeV2 = 0;
+          let userLtV1Count = 0, userBetweenCount = 0, userGeV2Count = 0;
+          
+          for (const r of rows as SaisieRow[]) {
+            if (r.user?.id === currentUser.id) {
+              // Utiliser la même logique que getSaisiesStatsOffline
+              let a = Number(r.volLtV1 || 0);
+              let b = Number(r.volBetweenV1V2 || 0);
+              let c = Number(r.volGeV2 || 0);
+              
+              if (!a && !b && !c && activeQualite?.pourcentageEcorce != null) {
+                const dM = Math.max(0, Number(r.diametre)) / 100;
+                const base = Math.PI * Math.pow(dM / 2, 2) * Math.max(0, Number(r.longueur));
+                const factor = 1 - Math.max(0, Math.min(100, activeQualite.pourcentageEcorce)) / 100;
+                const vol = base * factor;
+                if (vol < 0.25) a = vol;
+                else if (vol < 0.5) b = vol;
+                else c = vol;
+              }
+              
+              if (a > 0) userLtV1Count += 1;
+              if (b > 0) userBetweenCount += 1;
+              if (c > 0) userGeV2Count += 1;
+              
+              userLtV1 += a;
+              userBetween += b;
+              userGeV2 += c;
+            }
+          }
+          
+          const userTotal = userLtV1 + userBetween + userGeV2;
+          const userTotalCount = userLtV1Count + userBetweenCount + userGeV2Count;
+          setUserStats({
+            columns: {
+              ltV1: { sum: userLtV1, count: userLtV1Count, avg: userLtV1Count ? userLtV1 / userLtV1Count : 0 },
+              between: { sum: userBetween, count: userBetweenCount, avg: userBetweenCount ? userBetween / userBetweenCount : 0 },
+              geV2: { sum: userGeV2, count: userGeV2Count, avg: userGeV2Count ? userGeV2 / userGeV2Count : 0 },
+            },
+            total: { sum: userTotal, count: userTotalCount, avg: userTotalCount ? userTotal / userTotalCount : 0 },
+          });
+        } else {
+          setUserStats(null);
+        }
 
         // Supervisor aggregation across all qualites of this chantier
         // Build columns from chantier qualites (essence + qualité name)
@@ -573,6 +642,8 @@ export default function ChantierDetail() {
           <div className="hidden lg:block">
             <StatsTable
               stats={stats}
+              globalStats={globalStats}
+              userStats={userStats}
               todayUser={todayUser ?? undefined}
               isSupervisor={getUser()?.role === "SUPERVISEUR"}
             />
@@ -581,6 +652,8 @@ export default function ChantierDetail() {
             <div className="lg:hidden">
               <StatsTable
                 stats={stats}
+                globalStats={globalStats}
+                userStats={userStats}
                 todayUser={todayUser ?? undefined}
                 isSupervisor={getUser()?.role === "SUPERVISEUR"}
               />

@@ -33,10 +33,10 @@ export function httpDeleteSaisie(id: string) {
   return api<{ ok: true }>(`/saisies/${id}`, { method: "DELETE" });
 }
 
-export function httpGetSaisiesStats(chantierId: string, qualiteId: string) {
-  return api<SaisieStats>(
-    `/saisies/stats?chantierId=${chantierId}&qualiteId=${qualiteId}`,
-  );
+export function httpGetSaisiesStats(chantierId: string, qualiteId: string, global?: boolean) {
+  const params = new URLSearchParams({ chantierId, qualiteId });
+  if (global) params.set('global', 'true');
+  return api<SaisieStats>(`/saisies/stats?${params.toString()}`);
 }
 
 

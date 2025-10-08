@@ -277,7 +277,7 @@ export async function listSaisiesService(
  * ========================= */
 export async function getSaisiesStatsService(
   auth: { userId: string; role: "BUCHERON" | "SUPERVISEUR" },
-  filters: { chantierId: string; qualiteId: string },
+  filters: { chantierId: string; qualiteId: string; global?: boolean },
 ) {
   await assertAccessToChantier(auth, filters.chantierId);
 
@@ -285,8 +285,10 @@ export async function getSaisiesStatsService(
     chantierId: filters.chantierId,
     qualiteId: filters.qualiteId,
   };
-  if (auth.role === "BUCHERON") {
-    where.userId = auth.userId; // ← stats filtrées à l’utilisateur
+  // Les bûcherons ne voient leurs stats que si global=false (par défaut)
+  // Les superviseurs voient toujours les stats globales
+  if (auth.role === "BUCHERON" && !filters.global) {
+    where.userId = auth.userId; // ← stats filtrées à l'utilisateur
   }
 
   const rows = await prisma.saisie.findMany({

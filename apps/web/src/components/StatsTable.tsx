@@ -6,11 +6,15 @@ import type { SaisieStats } from "../features/saisies/api";
 
 export default function StatsTable({
   stats,
+  globalStats,
+  userStats,
   className = "",
   todayUser,
   isSupervisor = false,
 }: {
   stats: SaisieStats | null;
+  globalStats?: SaisieStats | null; // Stats globales (pour "V. total (tous)")
+  userStats?: SaisieStats | null; // Stats du bûcheron connecté (pour "V. total")
   className?: string;
   todayUser?: { ltV1: number; between: number; geV2: number; total: number } | null;
   isSupervisor?: boolean;
@@ -20,6 +24,7 @@ export default function StatsTable({
       minimumFractionDigits: 3,
       maximumFractionDigits: 3,
     });
+
 
   return (
     <div className={twMerge("mx-auto", "w-full md:w-[650px]", className)}>
@@ -57,25 +62,25 @@ export default function StatsTable({
             {!isSupervisor && (
               <tr className="text-center">
                 <td className="px-3 py-2 border-b border-gray-200 text-left">V. total (tous)</td>
-                <td className="px-3 py-2 border-b border-gray-200 tabular-nums">{fmt(stats?.columns.ltV1.sum)} m³</td>
-                <td className="px-3 py-2 border-b border-gray-200 tabular-nums">{fmt(stats?.columns.between.sum)} m³</td>
-                <td className="px-3 py-2 border-b border-gray-200 tabular-nums">{fmt(stats?.columns.geV2.sum)} m³</td>
-                <td className="px-3 py-2 border-b border-gray-200 tabular-nums">{fmt(stats?.total.sum)} m³</td>
+                <td className="px-3 py-2 border-b border-gray-200 tabular-nums">{fmt(globalStats?.columns.ltV1.sum ?? stats?.columns.ltV1.sum)} m³</td>
+                <td className="px-3 py-2 border-b border-gray-200 tabular-nums">{fmt(globalStats?.columns.between.sum ?? stats?.columns.between.sum)} m³</td>
+                <td className="px-3 py-2 border-b border-gray-200 tabular-nums">{fmt(globalStats?.columns.geV2.sum ?? stats?.columns.geV2.sum)} m³</td>
+                <td className="px-3 py-2 border-b border-gray-200 tabular-nums">{fmt(globalStats?.total.sum ?? stats?.total.sum)} m³</td>
               </tr>
             )}
             <tr className="text-center">
               <td className="px-3 py-2 border-b border-gray-200 text-left">V. total</td>
               <td className="px-3 py-2 border-b border-gray-200 tabular-nums">
-                {fmt(stats?.columns.ltV1.sum)} m³
+                {fmt(userStats?.columns.ltV1.sum ?? stats?.columns.ltV1.sum)} m³
               </td>
               <td className="px-3 py-2 border-b border-gray-200 tabular-nums">
-                {fmt(stats?.columns.between.sum)} m³
+                {fmt(userStats?.columns.between.sum ?? stats?.columns.between.sum)} m³
               </td>
               <td className="px-3 py-2 border-b border-gray-200 tabular-nums">
-                {fmt(stats?.columns.geV2.sum)} m³
+                {fmt(userStats?.columns.geV2.sum ?? stats?.columns.geV2.sum)} m³
               </td>
               <td className="px-3 py-2 border-b border-gray-200 tabular-nums">
-                {fmt(stats?.total.sum)} m³
+                {fmt(userStats?.total.sum ?? stats?.total.sum)} m³
               </td>
             </tr>
             <tr className="text-center">

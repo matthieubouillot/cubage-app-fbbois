@@ -63,12 +63,13 @@ export async function getSaisiesStats(
   chantierId: string,
   qualiteId: string,
   ecorcePercent?: number,
+  global?: boolean,
 ) {
   if (typeof navigator !== "undefined" && !navigator.onLine) {
     return await getSaisiesStatsOffline(chantierId, qualiteId, ecorcePercent);
   }
   try {
-    return await httpGetSaisiesStats(chantierId, qualiteId);
+    return await httpGetSaisiesStats(chantierId, qualiteId, global);
   } catch {
     // offline fallback from cache
     return await getSaisiesStatsOffline(chantierId, qualiteId, ecorcePercent);
