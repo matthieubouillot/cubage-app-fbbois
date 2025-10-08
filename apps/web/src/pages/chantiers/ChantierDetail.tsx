@@ -208,6 +208,52 @@ export default function ChantierDetail() {
         doc.close();
         setTimeout(() => {
           iframe.contentWindow?.focus();
+          
+          // Ajouter la numérotation de page avec JavaScript
+          const addPageNumbers = () => {
+            const doc = iframe.contentDocument;
+            if (!doc) return;
+            
+            // Calculer le nombre total de pages estimé
+            const bodyHeight = doc.body.scrollHeight;
+            const pageHeight = 297; // A4 height in mm (approximate)
+            const totalPages = Math.ceil(bodyHeight / (pageHeight * 3.78)); // Convert mm to pixels
+            
+            // Créer un script pour ajouter la numérotation
+            const script = doc.createElement('script');
+            script.textContent = `
+              window.addEventListener('beforeprint', function() {
+                // Supprimer les anciens numéros de page
+                document.querySelectorAll('.page-number').forEach(el => el.remove());
+                
+                // Estimer le nombre de pages
+                const bodyHeight = document.body.scrollHeight;
+                const pageHeight = 1122; // A4 height in pixels (approximate)
+                const totalPages = Math.max(1, Math.ceil(bodyHeight / pageHeight));
+                
+                // Ajouter les numéros de page
+                for (let i = 1; i <= totalPages; i++) {
+                  const pageNum = document.createElement('div');
+                  pageNum.className = 'page-number';
+                  pageNum.textContent = i + '/' + totalPages;
+                  pageNum.style.position = 'fixed';
+                  pageNum.style.bottom = '10mm';
+                  pageNum.style.right = '10mm';
+                  pageNum.style.fontSize = '10px';
+                  pageNum.style.color = '#666';
+                  pageNum.style.zIndex = '1000';
+                  pageNum.style.pointerEvents = 'none';
+                  document.body.appendChild(pageNum);
+                }
+              });
+            `;
+            doc.head.appendChild(script);
+            
+            // Déclencher l'événement beforeprint
+            iframe.contentWindow?.dispatchEvent(new Event('beforeprint'));
+          };
+          
+          addPageNumbers();
           iframe.contentWindow?.print();
           setTimeout(() => document.body.removeChild(iframe), 500);
         }, 150);
@@ -251,7 +297,28 @@ export default function ChantierDetail() {
         .mb-1 { margin-bottom: 4px; }
         .mb-2 { margin-bottom: 8px; }
         .mb-3 { margin-bottom: 12px; }
-        @media print { body { margin: 10mm; } }
+        .page-break { page-break-before: always; }
+        .no-break { page-break-inside: avoid; }
+        @media print { 
+          body { margin: 10mm; }
+          @page {
+            margin: 10mm;
+            @top-left { content: none; }
+            @top-center { content: none; }
+            @top-right { content: none; }
+            @bottom-left { content: none; }
+            @bottom-center { content: none; }
+            @bottom-right { content: none; }
+          }
+          .page-number {
+            position: fixed;
+            bottom: 10mm;
+            right: 10mm;
+            font-size: 10px;
+            color: #666;
+            z-index: 1000;
+          }
+        }
       </style>
     `;
   
@@ -265,7 +332,7 @@ export default function ChantierDetail() {
   : "—";
   
     const info = `
-      <section class="mb-3">
+      <section class="mb-3 no-break">
         <div class="title-wrap"><h1>Lot ${chantier.referenceLot}</h1></div>
         <div class="muted mb-2 small">${chantier.proprietaire} — ${chantier.commune}${chantier.lieuDit ? ` (${chantier.lieuDit})` : ""}</div>
         <div class="muted small"><strong>Convention:</strong> ${chantier.convention} • <strong>Section:</strong> ${chantier.section ?? "—"} • <strong>Parcelle:</strong> ${chantier.parcel ?? "—"}</div>
@@ -281,7 +348,7 @@ export default function ChantierDetail() {
     `;
   
     const statsTable = stats ? `
-      <section class="mb-2">
+      <section class="mb-2 no-break">
         <table>
           <thead>
             <tr><th></th><th>vol. &lt; V1</th><th>V1 ≤ vol. &lt; V2</th><th>vol. ≥ V2</th><th>Total</th></tr>
@@ -398,12 +465,11 @@ export default function ChantierDetail() {
           <div className="overflow-x-auto bg-white rounded-xl border shadow-sm">
             <table className="w-full text-sm table-fixed">
               <colgroup>
-                <col className="w-[22%]" />
+                <col key="header" className="w-[22%]" />
                 {perUserTotals.columns.map((c) => (
-                  // eslint-disable-next-line react/jsx-key
-                  <col className="w-[19.5%]" />
+                  <col key={c.key} className="w-[19.5%]" />
                 ))}
-                <col className="w-[19.5%]" />
+                <col key="total" className="w-[19.5%]" />
               </colgroup>
               <thead className="bg-gray-50">
                 <tr className="text-center">

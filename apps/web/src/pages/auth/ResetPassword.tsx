@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { useSearchParams, useNavigate, Link } from "react-router-dom";
 import { api } from "../../lib/api";
+import MobileBack from "../../components/MobileBack";
 
 export default function ResetPassword() {
   const [sp] = useSearchParams();
@@ -37,6 +38,7 @@ export default function ResetPassword() {
 
   return (
     <div className="min-h-[80vh] flex items-center justify-center bg-gray-50 px-4">
+      <MobileBack fallback="/login" />
       <div className="w-full max-w-sm">
         <div className="bg-white border rounded-2xl shadow-sm p-6 space-y-4 text-center">
           <div className="flex items-center justify-center gap-2">
