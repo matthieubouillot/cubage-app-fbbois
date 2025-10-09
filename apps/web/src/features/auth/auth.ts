@@ -5,6 +5,7 @@ export type User = {
   email: string;
   role: "BUCHERON" | "SUPERVISEUR";
   numStart?: number;
+  numEnd?: number;
 };
 
 const TOKEN_KEY = "auth_token";

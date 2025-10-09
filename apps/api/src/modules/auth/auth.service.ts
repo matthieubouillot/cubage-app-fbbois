@@ -8,5 +8,15 @@ export async function validateUser(email: string, password: string) {
   if (!ok) return null;
   // retire le hash
   const { password: _p, ...safe } = user;
-  return safe;
+  return safe as {
+    id: string;
+    firstName: string;
+    lastName: string;
+    email: string;
+    phone: string;
+    role: string;
+    numStart: number;
+    numEnd: number;
+    createdAt: Date;
+  };
 }
