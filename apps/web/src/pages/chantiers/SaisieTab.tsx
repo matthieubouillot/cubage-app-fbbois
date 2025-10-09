@@ -203,17 +203,21 @@ export default function SaisieTab({
   // modals
   const [showAdd, setShowAdd] = useState(false);
   const [showEdit, setShowEdit] = useState<null | SaisieRow>(null);
+  const [editError, setEditError] = useState<string | null>(null);
+  const [addError, setAddError] = useState<string | null>(null);
 
   // forms
   const [addForm, setAddForm] = useState({
     longueur: "",
     diametre: "",
     annotation: "",
+    numero: "",
   });
   const [editForm, setEditForm] = useState({
     longueur: "",
     diametre: "",
     annotation: "",
+    numero: "",
   });
 
   const addLongRef = useRef<HTMLInputElement>(null);
@@ -234,12 +238,14 @@ export default function SaisieTab({
 
   /* add */
   function openAdd() {
-    setAddForm({ longueur: "", diametre: "", annotation: "" });
+    setAddForm({ longueur: "", diametre: "", annotation: "", numero: "" });
+    setAddError(null);
     setShowAdd(true);
     setTimeout(() => addLongRef.current?.focus(), 60);
   }
   async function submitAdd() {
     try {
+      setAddError(null);
       const longueur = parseFloat(onlyNum(addForm.longueur).replace(",", "."));
       const diametre = parseFloat(onlyNum(addForm.diametre).replace(",", "."));
       if (
@@ -252,33 +258,58 @@ export default function SaisieTab({
           "Longueur et diamètre doivent être des nombres positifs.",
         );
       }
+      
+      // Validation du numéro si fourni
+      let numero: number | undefined;
+      if (addForm.numero.trim()) {
+        numero = parseInt(addForm.numero.trim());
+        if (!isFinite(numero) || numero <= 0) {
+          throw new Error("Le numéro doit être un nombre entier positif.");
+        }
+        
+        // Validation de la plage de numérotation de l'utilisateur
+        const { getUser } = await import("../../features/auth/auth");
+        const user = getUser();
+        if (user?.numStart && numero < user.numStart) {
+          throw new Error(`Le numéro doit être supérieur ou égal à ${user.numStart}.`);
+        }
+        if (user?.numEnd && numero > user.numEnd) {
+          throw new Error(`Le numéro doit être inférieur ou égal à ${user.numEnd}.`);
+        }
+      }
+
       await createSaisie({
         chantierId,
         qualiteId,
         longueur,
         diametre,
         annotation: addForm.annotation.trim() || undefined,
+        numero,
       });
       setShowAdd(false);
+      setAddForm({ longueur: "", diametre: "", annotation: "", numero: "" });
       await refresh();
       onMutated?.();
     } catch (e: any) {
-      setErr(e.message || "Erreur lors de l’ajout");
+      setAddError(e.message || "Erreur lors de l'ajout");
     }
   }
 
   /* edit */
   function openEdit(row: SaisieRow) {
     setShowEdit(row);
+    setEditError(null);
     setEditForm({
       longueur: String(row.longueur).replace(".", ","),
       diametre: String(row.diametre).replace(".", ","),
       annotation: row.annotation || "",
+      numero: String(row.numero || ""),
     });
   }
   async function submitEdit() {
     if (!showEdit) return;
     try {
+      setEditError(null);
       const longueur = parseFloat(onlyNum(editForm.longueur).replace(",", "."));
       const diametre = parseFloat(onlyNum(editForm.diametre).replace(",", "."));
       if (
@@ -291,16 +322,37 @@ export default function SaisieTab({
           "Longueur et diamètre doivent être des nombres positifs.",
         );
       }
+
+      // Validation du numéro si fourni
+      let numero: number | undefined;
+      if (editForm.numero.trim()) {
+        numero = parseInt(editForm.numero.trim());
+        if (!isFinite(numero) || numero <= 0) {
+          throw new Error("Le numéro doit être un nombre entier positif.");
+        }
+        
+        // Validation de la plage de numérotation de l'utilisateur
+        const { getUser } = await import("../../features/auth/auth");
+        const user = getUser();
+        if (user?.numStart && numero < user.numStart) {
+          throw new Error(`Le numéro doit être supérieur ou égal à ${user.numStart}.`);
+        }
+        if (user?.numEnd && numero > user.numEnd) {
+          throw new Error(`Le numéro doit être inférieur ou égal à ${user.numEnd}.`);
+        }
+      }
+
       await updateSaisieWithContext(showEdit.id, chantierId, qualiteId, {
         longueur,
         diametre,
         annotation: editForm.annotation.trim() || undefined,
+        numero,
       });
       setShowEdit(null);
       await refresh();
       onMutated?.();
     } catch (e: any) {
-      setErr(e.message || "Erreur lors de la modification");
+      setEditError(e.message || "Erreur lors de la modification");
     }
   }
 
@@ -503,6 +555,7 @@ export default function SaisieTab({
         submitLabel="Ajouter"
         maxWidth="max-w-md"
       >
+        {addError && <div className="text-red-600 text-sm mb-3 text-center">{addError}</div>}
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
           <LabeledInput
             label="LONG. (m)"
@@ -526,6 +579,17 @@ export default function SaisieTab({
           />
           <div className="sm:col-span-2">
             <LabeledInput
+              label="Numéro (optionnel)"
+              value={addForm.numero}
+              onChange={(v) =>
+                setAddForm((s) => ({ ...s, numero: v.replace(/[^\d]/g, "") }))
+              }
+              placeholder="Laisser vide pour numérotation automatique"
+              inputMode="numeric"
+            />
+          </div>
+          <div className="sm:col-span-2">
+            <LabeledInput
               label="Annotation"
               value={addForm.annotation}
               onChange={(v) => setAddForm((s) => ({ ...s, annotation: v }))}
@@ -545,6 +609,7 @@ export default function SaisieTab({
       >
         <div className="space-y-2 mb-2 text-xs text-gray-600 text-center">
           {showEdit && <div>{fmtDate(showEdit.date)}</div>}
+          {editError && <div className="text-red-600 text-sm">{editError}</div>}
         </div>
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
           <LabeledInput
@@ -565,6 +630,17 @@ export default function SaisieTab({
             placeholder="ex: 22"
             inputMode="decimal"
           />
+          <div className="sm:col-span-2">
+            <LabeledInput
+              label="Numéro"
+              value={editForm.numero}
+              onChange={(v) =>
+                setEditForm((s) => ({ ...s, numero: v.replace(/[^\d]/g, "") }))
+              }
+              placeholder="Numéro de la saisie"
+              inputMode="numeric"
+            />
+          </div>
           <div className="sm:col-span-2">
             <LabeledInput
               label="Annotation"

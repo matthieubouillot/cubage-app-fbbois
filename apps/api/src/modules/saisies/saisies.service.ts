@@ -16,12 +16,14 @@ type CreateSaisieInput = {
   longueur: number; // m
   diametre: number; // cm
   annotation?: string | null;
+  numero?: number;
 };
 
 type UpdateSaisieInput = {
   longueur: number; // m
   diametre: number; // cm
   annotation?: string | null;
+  numero?: number;
 };
 
 /* =========================
@@ -94,7 +96,7 @@ async function assertFKs(
 
 // Numérotation auto par (user, chantier, qualité)
 // =================== NUMÉROTATION ATOMIQUE ===================
-async function ensureNumberingAndGetNext(
+async function getNextNumber(
   userId: string,
   chantierId: string,
   qualiteId: string,
@@ -106,32 +108,63 @@ async function ensureNumberingAndGetNext(
   const start = user?.numStart ?? 1;
 
   return prisma.$transaction(async (tx) => {
-    const existing = await tx.numberingState.findUnique({
+    // Récupérer le dernier numéro existant pour cet utilisateur/chantier/qualité
+    const lastSaisie = await tx.saisie.findFirst({
       where: {
-        userId_chantierId_qualiteId: { userId, chantierId, qualiteId },
+        userId,
+        chantierId,
+        qualiteId,
       },
-      select: { nextNumber: true },
+      orderBy: { numero: 'desc' },
+      select: { numero: true },
     });
 
-    if (!existing) {
-      // Première saisie pour (user, chantier, qualité) → crée l’état à start
-      await tx.numberingState.create({
-        data: { userId, chantierId, qualiteId, nextNumber: start + 1 },
-      });
-      // Numéro attribué = start
+    // Si aucune saisie existante, commencer au numéro de départ
+    if (!lastSaisie) {
       return start;
     }
 
-    // Incrémente et récupère la valeur après incrément
-    const updated = await tx.numberingState.update({
-      where: { userId_chantierId_qualiteId: { userId, chantierId, qualiteId } },
-      data: { nextNumber: { increment: 1 } },
-      select: { nextNumber: true },
-    });
-
-    // La valeur stockée est "prochain numéro" → on attribue "updated - 1"
-    return updated.nextNumber - 1;
+    // Sinon, prendre le dernier numéro + 1
+    return lastSaisie.numero + 1;
   });
+}
+
+// Validation d'unicité du numéro
+async function validateNumeroUnique(
+  userId: string,
+  chantierId: string,
+  qualiteId: string,
+  numero: number,
+  excludeId?: string,
+) {
+  const existing = await prisma.saisie.findFirst({
+    where: {
+      userId,
+      chantierId,
+      qualiteId,
+      numero,
+      ...(excludeId && { id: { not: excludeId } }),
+    },
+  });
+
+  if (existing) {
+    throw new Error(`Le numéro ${numero} est déjà utilisé`);
+  }
+}
+
+// Validation de la plage de numérotation
+async function validateNumeroRange(userId: string, numero: number) {
+  const user = await prisma.user.findUnique({
+    where: { id: userId },
+    select: { numStart: true, numEnd: true },
+  });
+
+  if (user?.numStart && numero < user.numStart) {
+    throw new Error(`Le numéro doit être supérieur ou égal à ${user.numStart}`);
+  }
+  if (user?.numEnd && numero > user.numEnd) {
+    throw new Error(`Le numéro doit être inférieur ou égal à ${user.numEnd}`);
+  }
 }
 
 /**
@@ -198,11 +231,26 @@ export async function createSaisieService(
     input.diametre,
   );
 
-  const numero = await ensureNumberingAndGetNext(
-    auth.userId,
-    input.chantierId,
-    input.qualiteId,
-  );
+  // Numérotation
+  let numero: number;
+  if (input.numero) {
+    // Numéro fourni : valider la plage et l'unicité
+    await validateNumeroRange(auth.userId, input.numero);
+    await validateNumeroUnique(
+      auth.userId,
+      input.chantierId,
+      input.qualiteId,
+      input.numero,
+    );
+    numero = input.numero;
+  } else {
+    // Numéro automatique : prendre le dernier + 1
+    numero = await getNextNumber(
+      auth.userId,
+      input.chantierId,
+      input.qualiteId,
+    );
+  }
 
   return prisma.saisie.create({
     data: {
@@ -363,6 +411,18 @@ export async function updateSaisieService(
     payload.diametre,
   );
 
+  // Validation du numéro si fourni
+  if (payload.numero !== undefined) {
+    await validateNumeroRange(auth.userId, payload.numero);
+    await validateNumeroUnique(
+      auth.userId,
+      s.chantierId,
+      s.qualiteId,
+      payload.numero,
+      s.id,
+    );
+  }
+
   return prisma.saisie.update({
     where: { id: s.id },
     data: {
@@ -370,6 +430,7 @@ export async function updateSaisieService(
       diametre: computed.diametre,
       essence: { connect: { id: computed.essenceId } },
       volumeCalc: computed.volumeCalc,
+      ...(payload.numero !== undefined && { numero: payload.numero }),
       volLtV1: computed.volLtV1,
       volBetweenV1V2: computed.volBetweenV1V2,
       volGeV2: computed.volGeV2,

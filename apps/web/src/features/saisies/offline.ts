@@ -44,6 +44,7 @@ export async function createSaisieOffline(payload: {
   longueur: number;
   diametre: number;
   annotation?: string | null;
+  numero?: number;
 }): Promise<SaisieRow> {
   const { chantierId, qualiteId } = payload;
   if (isOnline()) {
@@ -54,10 +55,39 @@ export async function createSaisieOffline(payload: {
   }
   const tempId = `tmp_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
   const nowIso = new Date().toISOString();
+  // Calculer le numéro
+  let numero: number;
+  if (payload.numero !== undefined) {
+    // Numéro fourni : valider la plage et l'unicité localement
+    const me = getUser();
+    if (!me) {
+      throw new Error("Utilisateur non connecté");
+    }
+    if (me.numStart && payload.numero < me.numStart) {
+      throw new Error(`Le numéro doit être supérieur ou égal à ${me.numStart}`);
+    }
+    if (me.numEnd && payload.numero > me.numEnd) {
+      throw new Error(`Le numéro doit être inférieur ou égal à ${me.numEnd}`);
+    }
+    
+    const existing = await readCachedSaisiesList(chantierId, qualiteId);
+    const isDuplicate = existing?.some(r => 
+      r.numero === payload.numero && 
+      r.user?.id === me.id
+    );
+    if (isDuplicate) {
+      throw new Error(`Le numéro ${payload.numero} est déjà utilisé`);
+    }
+    numero = payload.numero;
+  } else {
+    // Numéro automatique : prendre le dernier + 1
+    numero = await nextLocalNumero(chantierId, qualiteId);
+  }
+
   const optimistic: SaisieRow = {
     id: tempId,
     date: nowIso,
-    numero: await nextLocalNumero(chantierId, qualiteId),
+    numero,
     longueur: payload.longueur,
     diametre: payload.diametre,
     volumeCalc: 0,
@@ -78,7 +108,7 @@ export async function updateSaisieOffline(
   id: string,
   chantierId: string,
   qualiteId: string,
-  payload: { longueur: number; diametre: number; annotation?: string | null },
+  payload: { longueur: number; diametre: number; annotation?: string | null; numero?: number },
 ): Promise<SaisieRow> {
   if (isOnline()) {
     const row = await httpUpdate(id, payload);
@@ -87,11 +117,36 @@ export async function updateSaisieOffline(
     return row;
   }
   const existing = (await readCachedSaisie(chantierId, qualiteId, id)) || {};
+  
+  // Validation du numéro si fourni
+  if (payload.numero !== undefined) {
+    const me = getUser();
+    if (!me) {
+      throw new Error("Utilisateur non connecté");
+    }
+    if (me.numStart && payload.numero < me.numStart) {
+      throw new Error(`Le numéro doit être supérieur ou égal à ${me.numStart}`);
+    }
+    if (me.numEnd && payload.numero > me.numEnd) {
+      throw new Error(`Le numéro doit être inférieur ou égal à ${me.numEnd}`);
+    }
+    
+    const allRows = await readCachedSaisiesList(chantierId, qualiteId);
+    const isDuplicate = allRows?.some(r => 
+      r.numero === payload.numero && 
+      r.user?.id === me.id &&
+      r.id !== id // Exclure l'élément en cours de modification
+    );
+    if (isDuplicate) {
+      throw new Error(`Le numéro ${payload.numero} est déjà utilisé`);
+    }
+  }
+
   const optimistic: any = {
     ...existing,
     id,
     // preserve numero/date if present, otherwise keep existing
-    numero: existing.numero ?? existing.numero,
+    numero: payload.numero !== undefined ? payload.numero : existing.numero,
     date: existing.date ?? new Date().toISOString(),
     longueur: payload.longueur,
     diametre: payload.diametre,
@@ -131,6 +186,14 @@ export async function deleteSaisieOffline(
 export async function trySyncQueue() {
   if (!isOnline()) return;
   if (syncing) return;
+  
+  // Vérifier qu'on a un token avant de commencer la sync
+  const token = localStorage.getItem("auth_token");
+  if (!token) {
+    console.log('Sync ignorée: aucun token d\'authentification');
+    return;
+  }
+  
   syncing = true;
   try {
     const all = await readQueue();
@@ -138,20 +201,86 @@ export async function trySyncQueue() {
       try {
         if (item.op.kind === "create") {
           const { clientTempId, ...payload } = (item.op as any).payload || {};
-          const row = await httpCreate(payload);
-          await removeCachedSaisie(item.chantierId, item.qualiteId, clientTempId);
-          await upsertCachedSaisie(item.chantierId, item.qualiteId, row);
+          try {
+            const row = await httpCreate(payload);
+            await removeCachedSaisie(item.chantierId, item.qualiteId, clientTempId);
+            await upsertCachedSaisie(item.chantierId, item.qualiteId, row);
+          } catch (error: any) {
+            // Si le numéro est déjà utilisé, créer avec numérotation automatique
+            if (error.message.includes('déjà utilisé')) {
+              console.log(`Numéro ${payload.numero} déjà utilisé, création avec numérotation automatique`);
+              const { numero, ...payloadWithoutNumero } = payload;
+              const row = await httpCreate(payloadWithoutNumero);
+              await removeCachedSaisie(item.chantierId, item.qualiteId, clientTempId);
+              await upsertCachedSaisie(item.chantierId, item.qualiteId, row);
+            } else {
+              throw error; // Re-lancer les autres erreurs
+            }
+          }
         } else if (item.op.kind === "update") {
-          const row = await httpUpdate(item.op.id, (item.op as any).payload);
-          await upsertCachedSaisie(item.chantierId, item.qualiteId, row);
+          // Si c'est un ID temporaire, on doit d'abord créer l'élément
+          if (item.op.id.startsWith('tmp_')) {
+            // C'est un élément temporaire qui n'existe pas encore sur le serveur
+            // On le traite comme une création
+            const payload = (item.op as any).payload || {};
+            // Essayer d'abord avec le numéro original
+            try {
+              const row = await httpCreate({
+                chantierId: item.chantierId,
+                qualiteId: item.qualiteId,
+                longueur: payload.longueur,
+                diametre: payload.diametre,
+                annotation: payload.annotation,
+                numero: payload.numero,
+              });
+              await removeCachedSaisie(item.chantierId, item.qualiteId, item.op.id);
+              await upsertCachedSaisie(item.chantierId, item.qualiteId, row);
+            } catch (error: any) {
+              // Si le numéro est déjà utilisé, créer avec numérotation automatique
+              if (error.message.includes('déjà utilisé')) {
+                console.log(`Numéro ${payload.numero} déjà utilisé, création avec numérotation automatique`);
+                const row = await httpCreate({
+                  chantierId: item.chantierId,
+                  qualiteId: item.qualiteId,
+                  longueur: payload.longueur,
+                  diametre: payload.diametre,
+                  annotation: payload.annotation,
+                  // Pas de numero -> numérotation automatique
+                });
+                await removeCachedSaisie(item.chantierId, item.qualiteId, item.op.id);
+                await upsertCachedSaisie(item.chantierId, item.qualiteId, row);
+              } else {
+                throw error; // Re-lancer les autres erreurs
+              }
+            }
+          } else {
+            // C'est un élément existant, on peut le mettre à jour
+            const row = await httpUpdate(item.op.id, (item.op as any).payload);
+            await upsertCachedSaisie(item.chantierId, item.qualiteId, row);
+          }
         } else if (item.op.kind === "delete") {
-          await httpDelete(item.op.id);
-          await removeCachedSaisie(item.chantierId, item.qualiteId, item.op.id);
+          // Si c'est un ID temporaire, on peut juste le supprimer du cache local
+          if (item.op.id.startsWith('tmp_')) {
+            await removeCachedSaisie(item.chantierId, item.qualiteId, item.op.id);
+          } else {
+            // C'est un élément existant, on peut le supprimer du serveur
+            await httpDelete(item.op.id);
+            await removeCachedSaisie(item.chantierId, item.qualiteId, item.op.id);
+          }
         }
         await clearQueueItem(item.id!);
-      } catch {
-        // Stop at first failure to avoid rapid loops; will retry later
-        break;
+      } catch (error: any) {
+        // Si erreur d'authentification, arrêter complètement la synchronisation
+        if (error?.status === 401 || 
+            error?.message?.includes('401') || 
+            error?.message?.includes('Token manquant') ||
+            error?.message?.includes('Token expiré')) {
+          console.log('Sync arrêtée: problème d\'authentification - reconnexion nécessaire');
+          break;
+        }
+        // Pour les autres erreurs, continuer avec l'item suivant
+        console.log('Erreur sync item:', error);
+        continue;
       }
     }
     dispatchSyncEvent();

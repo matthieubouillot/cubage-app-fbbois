@@ -12,6 +12,7 @@ export function httpCreateSaisie(payload: {
   longueur: number;
   diametre: number;
   annotation?: string | null;
+  numero?: number;
 }) {
   return api<SaisieRow>("/saisies", {
     method: "POST",
@@ -21,7 +22,7 @@ export function httpCreateSaisie(payload: {
 
 export function httpUpdateSaisie(
   id: string,
-  payload: { longueur: number; diametre: number; annotation?: string | null },
+  payload: { longueur: number; diametre: number; annotation?: string | null; numero?: number },
 ) {
   return api<SaisieRow>(`/saisies/${id}`, {
     method: "PATCH",

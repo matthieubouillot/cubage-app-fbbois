@@ -1,4 +1,4 @@
-const CACHE = "cubage-shell-v3";
+const CACHE = "cubage-shell-v4";
 const APP_SHELL = [
   "/",
   "/index.html",
@@ -24,7 +24,15 @@ self.addEventListener("activate", (e) => {
 self.addEventListener("fetch", (e) => {
   const req = e.request;
   const url = new URL(req.url);
-  if (req.method !== "GET") return;
+  
+  // Ne JAMAIS intercepter les requêtes non-GET ou les requêtes API
+  if (req.method !== "GET" || 
+      url.pathname.startsWith("/api/") || 
+      req.headers.get("Authorization") ||
+      req.headers.get("Content-Type") === "application/json") {
+    // Laisser passer toutes les requêtes API et non-GET
+    return;
+  }
 
   // Handle navigations: always serve the SPA shell
   if (req.mode === "navigate" && url.origin === self.location.origin) {

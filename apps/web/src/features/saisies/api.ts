@@ -21,6 +21,7 @@ export function createSaisie(payload: {
   longueur: number;
   diametre: number;
   annotation?: string | null;
+  numero?: number;
 }) {
   return createSaisieOffline(payload);
 }
@@ -31,6 +32,7 @@ export function updateSaisie(
     longueur: number;
     diametre: number;
     annotation?: string | null;
+    numero?: number;
   },
 ) {
   // We need chantierId/qualiteId to update cache when offline; callers in SaisieTab know them
@@ -44,7 +46,7 @@ export function updateSaisieWithContext(
   id: string,
   chantierId: string,
   qualiteId: string,
-  payload: { longueur: number; diametre: number; annotation?: string | null },
+  payload: { longueur: number; diametre: number; annotation?: string | null; numero?: number },
 ) {
   return updateSaisieOffline(id, chantierId, qualiteId, payload);
 }

@@ -489,7 +489,7 @@ export default function ChantierDetail() {
       {/* Header centré */}
       <header className="text-center space-y-1">
         <h1 className="text-2xl lg:text-3xl font-semibold tracking-tight">
-          {data.referenceLot}
+          Lot {data.referenceLot}
         </h1>
         <p className="text-sm text-gray-500">
           {data.proprietaire} — {data.commune}

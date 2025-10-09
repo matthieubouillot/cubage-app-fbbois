@@ -20,6 +20,7 @@ const UpdateSchema = z.object({
   longueur: z.number().positive(),
   diametre: z.number().positive(),
   annotation: z.string().max(500).optional().nullable(),
+  numero: z.number().positive().optional(),
 });
 
 export async function createSaisie(req: Request, res: Response) {
@@ -34,6 +35,7 @@ export async function createSaisie(req: Request, res: Response) {
       longueur: number;
       diametre: number;
       annotation?: string | null;
+      numero?: number;
     };
     const row = await createSaisieService(auth, payload);
     res.status(201).json(row);
