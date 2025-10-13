@@ -254,88 +254,196 @@ export default function ChantierDetail() {
   async function onExportAllPdfs() {
     if (!data) return;
     
-    // Traiter chaque PDF de manière séquentielle pour éviter les interférences
+    // Traiter chaque PDF de manière séquentielle avec une approche simplifiée
     for (let i = 0; i < data.qualites.length; i++) {
       const q = data.qualites[i];
       try {
         const s = await getSaisiesStats(data.id, q.id, q.pourcentageEcorce ?? 0);
         const rows = (await listSaisies(data.id, q.id)) as SaisieRow[];
-        const html = buildExportHtml(data, q, s, rows);
+        
+        // Modifier le HTML pour inclure la numérotation directement dans le CSS
+        const htmlWithPageNumbers = buildExportHtmlWithPageNumbers(data, q, s, rows);
         
         // Attendre que le PDF précédent soit complètement traité
         if (i > 0) {
-          await new Promise(resolve => setTimeout(resolve, 1000));
+          await new Promise(resolve => setTimeout(resolve, 1500));
         }
         
-        // Créer un iframe complètement isolé pour ce PDF spécifique
-        const iframe = document.createElement("iframe");
-        iframe.style.position = "fixed";
-        iframe.style.right = "-9999px"; // Complètement hors écran
-        iframe.style.bottom = "-9999px";
-        iframe.style.width = "0";
-        iframe.style.height = "0";
-        iframe.style.border = "0";
-        iframe.style.visibility = "hidden";
-        iframe.style.opacity = "0";
-        document.body.appendChild(iframe);
-        
-        const doc = iframe.contentDocument || iframe.contentWindow?.document;
-        if (!doc) {
-          document.body.removeChild(iframe);
+        // Créer une nouvelle fenêtre pour chaque PDF
+        const printWindow = window.open('', '_blank', 'width=800,height=600');
+        if (!printWindow) {
+          console.error('Impossible d\'ouvrir une nouvelle fenêtre pour l\'impression');
           continue;
         }
         
-        doc.open();
-        doc.write(html);
-        doc.close();
+        printWindow.document.write(htmlWithPageNumbers);
+        printWindow.document.close();
         
-        // Attendre que le contenu soit chargé puis ajouter la numérotation directement
-        setTimeout(() => {
-          const iframeDoc = iframe.contentDocument;
-          if (!iframeDoc) {
-            document.body.removeChild(iframe);
-            return;
-          }
+        // Attendre que le contenu soit chargé
+        printWindow.onload = () => {
+          // Forcer le recalcul du contenu
+          printWindow.document.body.style.display = 'none';
+          printWindow.document.body.offsetHeight; // Trigger reflow
+          printWindow.document.body.style.display = '';
           
-          // Supprimer tous les anciens numéros de page s'il y en a
-          iframeDoc.querySelectorAll('.page-number').forEach(el => el.remove());
+          // Imprimer
+          printWindow.print();
           
-          // Calculer le nombre de pages pour ce document spécifique
-          const bodyHeight = iframeDoc.body.scrollHeight;
-          const pageHeight = 1122; // A4 height in pixels (approximate)
-          const totalPages = Math.max(1, Math.ceil(bodyHeight / pageHeight));
-          
-          // Ajouter la numérotation directement dans le DOM (pas d'événements)
-          for (let pageNum = 1; pageNum <= totalPages; pageNum++) {
-            const pageNumberDiv = iframeDoc.createElement('div');
-            pageNumberDiv.className = 'page-number';
-            pageNumberDiv.textContent = `${pageNum}/${totalPages}`;
-            pageNumberDiv.style.position = 'fixed';
-            pageNumberDiv.style.bottom = '10mm';
-            pageNumberDiv.style.right = '10mm';
-            pageNumberDiv.style.fontSize = '10px';
-            pageNumberDiv.style.color = '#666';
-            pageNumberDiv.style.zIndex = '1000';
-            pageNumberDiv.style.pointerEvents = 'none';
-            iframeDoc.body.appendChild(pageNumberDiv);
-          }
-          
-          // Imprimer ce PDF
-          iframe.contentWindow?.focus();
-          iframe.contentWindow?.print();
-          
-          // Nettoyer l'iframe après impression
+          // Fermer la fenêtre après impression
           setTimeout(() => {
-            if (document.body.contains(iframe)) {
-              document.body.removeChild(iframe);
-            }
-          }, 1500);
-        }, 300);
+            printWindow.close();
+          }, 1000);
+        };
         
       } catch (error) {
         console.error('Erreur lors de l\'export PDF pour la qualité:', q.name, error);
       }
     }
+  }
+
+  function buildExportHtmlWithPageNumbers(
+    chantier: ChantierDetail,
+    qualite: NonNullable<typeof activeQualite>,
+    stats: SaisieStats | null,
+    rows: SaisieRow[],
+  ) {
+    const fmt3 = (n?: number) =>
+      (n ?? 0).toLocaleString("fr-FR", { minimumFractionDigits: 3, maximumFractionDigits: 3 });
+    const fmtDate = (iso: string) => {
+      const d = new Date(iso);
+      const date = d.toLocaleDateString("fr-FR", { year: "2-digit", month: "2-digit", day: "2-digit" });
+      const time = d.toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit", hour12: false });
+      return `${date} ${time}`;
+    };
+  
+    const head = `
+      <meta charset="utf-8" />
+      <meta name="viewport" content="width=device-width, initial-scale=1" />
+      <title>Lot ${chantier.referenceLot} — ${qualite.essence.name} ${qualite.name}</title>
+      <style>
+        * { box-sizing: border-box; }
+        body { 
+          font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, sans-serif; 
+          color: #111; 
+          margin: 24px; 
+          counter-reset: page; /* Réinitialiser le compteur de pages */
+        }
+        .title-wrap { display:flex; align-items:center; justify-content:center; text-align:center; }
+        h1 { font-size: 22px; margin: 0 0 4px; font-weight: 600; }
+        h2 { font-size: 16px; margin: 12px 0 8px; text-align: center; font-weight: 600; }
+        .muted { color: #6b7280; font-size: 12px; text-align: center; }
+        .small { font-size: 11px; }
+        table { width: 100%; border-collapse: collapse; }
+        th, td { border: 1px solid #e5e7eb; padding: 6px 8px; font-size: 12px; }
+        th { background: #f9fafb; text-align: center; }
+        td { text-align: center; }
+        td.left { text-align: left; }
+        .nums { font-variant-numeric: tabular-nums; }
+        .mb-1 { margin-bottom: 4px; }
+        .mb-2 { margin-bottom: 8px; }
+        .mb-3 { margin-bottom: 12px; }
+        .page-break { page-break-before: always; }
+        .no-break { page-break-inside: avoid; }
+        
+        @media print { 
+          body { margin: 10mm; }
+          @page {
+            margin: 10mm;
+            @top-left { content: none; }
+            @top-center { content: none; }
+            @top-right { content: none; }
+            @bottom-left { content: none; }
+            @bottom-center { content: none; }
+            @bottom-right { 
+              content: counter(page) "/" counter(pages);
+              font-size: 10px;
+              color: #666;
+            }
+          }
+        }
+      </style>
+    `;
+  
+    const createdAtText = chantier?.createdAt
+  ? (() => {
+      const d = new Date(chantier.createdAt as any);
+      const date = d.toLocaleDateString("fr-FR", { year: "2-digit", month: "2-digit", day: "2-digit" });
+      const time = d.toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit", hour12: false });
+      return `${date} ${time}`;
+    })()
+  : "—";
+  
+    const info = `
+      <section class="mb-3 no-break">
+        <div class="title-wrap"><h1>Lot ${chantier.referenceLot}</h1></div>
+        <div class="muted mb-2 small">${chantier.proprietaire} — ${chantier.commune}${chantier.lieuDit ? ` (${chantier.lieuDit})` : ""}</div>
+        <div class="muted small"><strong>Convention:</strong> ${chantier.convention} • <strong>Section:</strong> ${chantier.section ?? "—"} • <strong>Parcelle:</strong> ${chantier.parcel ?? "—"}</div>
+        <div class="muted small"><strong>Date de création:</strong> ${createdAtText}</div>
+      </section>
+    `;
+  
+    const qual = `
+      <section class="mb-2">
+        <h2>${qualite.essence.name} — ${qualite.name}</h2>
+        <div class="muted">% écorce: ${qualite.pourcentageEcorce ?? 0}%</div>
+      </section>
+    `;
+  
+    const statsTable = stats ? `
+      <section class="mb-2 no-break">
+        <table>
+          <thead>
+            <tr><th></th><th>vol. &lt; V1</th><th>V1 ≤ vol. &lt; V2</th><th>vol. ≥ V2</th><th>Total</th></tr>
+          </thead>
+          <tbody>
+            <tr><td class="left">V. total</td><td class="nums">${fmt3(stats.columns.ltV1.sum)} m³</td><td class="nums">${fmt3(stats.columns.between.sum)} m³</td><td class="nums">${fmt3(stats.columns.geV2.sum)} m³</td><td class="nums">${fmt3(stats.total.sum)} m³</td></tr>
+            <tr><td class="left">Nb.</td><td>${stats.columns.ltV1.count}</td><td>${stats.columns.between.count}</td><td>${stats.columns.geV2.count}</td><td>${stats.total.count}</td></tr>
+            <tr><td class="left">V. moy</td><td class="nums">${fmt3(stats.columns.ltV1.avg)} m³</td><td class="nums">${fmt3(stats.columns.between.avg)} m³</td><td class="nums">${fmt3(stats.columns.geV2.avg)} m³</td><td class="nums">${fmt3(stats.total.avg)} m³</td></tr>
+          </tbody>
+        </table>
+      </section>
+    ` : "";
+  
+    const rowsTable = `
+      <section>
+        <table>
+          <thead>
+            <tr>
+              <th>N°</th><th>Date</th><th>LONG.</th><th>DIAM.</th>
+              <th>vol. &lt; V1</th><th>V1 ≤ vol. &lt; V2</th><th>vol. ≥ V2</th><th>Annotation</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${
+              rows.length === 0
+                ? `<tr><td class="left" colspan="8" style="text-align:center">Aucune saisie.</td></tr>`
+                : rows.map((r) => {
+                    const dM = Math.max(0, Number(r.diametre)) / 100;
+                    const base = Math.PI * Math.pow(dM / 2, 2) * Math.max(0, Number(r.longueur));
+                    const factor = 1 - Math.max(0, Math.min(100, qualite.pourcentageEcorce ?? 0)) / 100;
+                    const vol = base * factor;
+                    const a = vol < 0.25 ? vol : 0;
+                    const b = vol >= 0.25 && vol < 0.5 ? vol : 0;
+                    const c = vol >= 0.5 ? vol : 0;
+                    return `
+                      <tr>
+                        <td class="nums">${r.numero}</td>
+                        <td class="nums">${fmtDate(r.date)}</td>
+                        <td class="nums">${Number(r.longueur).toLocaleString("fr-FR")}</td>
+                        <td class="nums">${Number(r.diametre).toLocaleString("fr-FR")}</td>
+                        <td class="nums">${a ? fmt3(a) : ""}</td>
+                        <td class="nums">${b ? fmt3(b) : ""}</td>
+                        <td class="nums">${c ? fmt3(c) : ""}</td>
+                        <td class="left">${r.annotation ? escapeHtml(r.annotation) : "—"}</td>
+                      </tr>`;
+                  }).join("")
+            }
+          </tbody>
+        </table>
+      </section>
+    `;
+  
+    return `<!doctype html><html><head>${head}</head><body>${info}${qual}${statsTable}${rowsTable}</body></html>`;
   }
 
   function buildExportHtml(
