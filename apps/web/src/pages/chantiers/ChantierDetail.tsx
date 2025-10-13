@@ -258,7 +258,8 @@ export default function ChantierDetail() {
         const s = await getSaisiesStats(data.id, q.id, q.pourcentageEcorce ?? 0);
         const rows = (await listSaisies(data.id, q.id)) as SaisieRow[];
         const html = buildExportHtml(data, q, s, rows);
-        // Imprimer via un iframe caché pour éviter tout titre/URL (about:blank)
+        
+        // Créer un iframe complètement isolé pour chaque PDF
         const iframe = document.createElement("iframe");
         iframe.style.position = "fixed";
         iframe.style.right = "0";
@@ -266,41 +267,40 @@ export default function ChantierDetail() {
         iframe.style.width = "0";
         iframe.style.height = "0";
         iframe.style.border = "0";
+        iframe.style.visibility = "hidden";
         document.body.appendChild(iframe);
+        
         const doc = iframe.contentDocument || iframe.contentWindow?.document;
         if (!doc) {
           document.body.removeChild(iframe);
           continue;
         }
+        
         doc.open();
         doc.write(html);
         doc.close();
+        
         setTimeout(() => {
           iframe.contentWindow?.focus();
           
-          // Ajouter la numérotation de page avec JavaScript
+          // Ajouter la numérotation de page avec JavaScript pour ce PDF spécifique
           const addPageNumbers = () => {
-            const doc = iframe.contentDocument;
-            if (!doc) return;
-            
-            // Calculer le nombre total de pages estimé
-            const bodyHeight = doc.body.scrollHeight;
-            const pageHeight = 297; // A4 height in mm (approximate)
-            const totalPages = Math.ceil(bodyHeight / (pageHeight * 3.78)); // Convert mm to pixels
+            const iframeDoc = iframe.contentDocument;
+            if (!iframeDoc) return;
             
             // Créer un script pour ajouter la numérotation
-            const script = doc.createElement('script');
+            const script = iframeDoc.createElement('script');
             script.textContent = `
               window.addEventListener('beforeprint', function() {
-                // Supprimer les anciens numéros de page
+                // Supprimer tous les anciens numéros de page de ce document
                 document.querySelectorAll('.page-number').forEach(el => el.remove());
                 
-                // Estimer le nombre de pages
+                // Estimer le nombre de pages pour ce document spécifique
                 const bodyHeight = document.body.scrollHeight;
                 const pageHeight = 1122; // A4 height in pixels (approximate)
                 const totalPages = Math.max(1, Math.ceil(bodyHeight / pageHeight));
                 
-                // Ajouter les numéros de page
+                // Ajouter les numéros de page en recommençant à 1 pour ce PDF
                 for (let i = 1; i <= totalPages; i++) {
                   const pageNum = document.createElement('div');
                   pageNum.className = 'page-number';
@@ -316,17 +316,25 @@ export default function ChantierDetail() {
                 }
               });
             `;
-            doc.head.appendChild(script);
+            iframeDoc.head.appendChild(script);
             
-            // Déclencher l'événement beforeprint
+            // Déclencher l'événement beforeprint pour ce document spécifique
             iframe.contentWindow?.dispatchEvent(new Event('beforeprint'));
           };
           
           addPageNumbers();
           iframe.contentWindow?.print();
-          setTimeout(() => document.body.removeChild(iframe), 500);
-        }, 150);
-      } catch {}
+          
+          // Nettoyer l'iframe après impression
+          setTimeout(() => {
+            if (document.body.contains(iframe)) {
+              document.body.removeChild(iframe);
+            }
+          }, 1000);
+        }, 200); // Augmenter le délai pour s'assurer que le contenu est chargé
+      } catch (error) {
+        console.error('Erreur lors de l\'export PDF pour la qualité:', q.name, error);
+      }
     }
   }
 
