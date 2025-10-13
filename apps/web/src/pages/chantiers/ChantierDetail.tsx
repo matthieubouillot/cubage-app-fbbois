@@ -253,21 +253,30 @@ export default function ChantierDetail() {
 
   async function onExportAllPdfs() {
     if (!data) return;
-    for (const q of data.qualites) {
+    
+    // Traiter chaque PDF de manière séquentielle pour éviter les interférences
+    for (let i = 0; i < data.qualites.length; i++) {
+      const q = data.qualites[i];
       try {
         const s = await getSaisiesStats(data.id, q.id, q.pourcentageEcorce ?? 0);
         const rows = (await listSaisies(data.id, q.id)) as SaisieRow[];
         const html = buildExportHtml(data, q, s, rows);
         
-        // Créer un iframe complètement isolé pour chaque PDF
+        // Attendre que le PDF précédent soit complètement traité
+        if (i > 0) {
+          await new Promise(resolve => setTimeout(resolve, 1000));
+        }
+        
+        // Créer un iframe complètement isolé pour ce PDF spécifique
         const iframe = document.createElement("iframe");
         iframe.style.position = "fixed";
-        iframe.style.right = "0";
-        iframe.style.bottom = "0";
+        iframe.style.right = "-9999px"; // Complètement hors écran
+        iframe.style.bottom = "-9999px";
         iframe.style.width = "0";
         iframe.style.height = "0";
         iframe.style.border = "0";
         iframe.style.visibility = "hidden";
+        iframe.style.opacity = "0";
         document.body.appendChild(iframe);
         
         const doc = iframe.contentDocument || iframe.contentWindow?.document;
@@ -280,49 +289,39 @@ export default function ChantierDetail() {
         doc.write(html);
         doc.close();
         
+        // Attendre que le contenu soit chargé puis ajouter la numérotation directement
         setTimeout(() => {
+          const iframeDoc = iframe.contentDocument;
+          if (!iframeDoc) {
+            document.body.removeChild(iframe);
+            return;
+          }
+          
+          // Supprimer tous les anciens numéros de page s'il y en a
+          iframeDoc.querySelectorAll('.page-number').forEach(el => el.remove());
+          
+          // Calculer le nombre de pages pour ce document spécifique
+          const bodyHeight = iframeDoc.body.scrollHeight;
+          const pageHeight = 1122; // A4 height in pixels (approximate)
+          const totalPages = Math.max(1, Math.ceil(bodyHeight / pageHeight));
+          
+          // Ajouter la numérotation directement dans le DOM (pas d'événements)
+          for (let pageNum = 1; pageNum <= totalPages; pageNum++) {
+            const pageNumberDiv = iframeDoc.createElement('div');
+            pageNumberDiv.className = 'page-number';
+            pageNumberDiv.textContent = `${pageNum}/${totalPages}`;
+            pageNumberDiv.style.position = 'fixed';
+            pageNumberDiv.style.bottom = '10mm';
+            pageNumberDiv.style.right = '10mm';
+            pageNumberDiv.style.fontSize = '10px';
+            pageNumberDiv.style.color = '#666';
+            pageNumberDiv.style.zIndex = '1000';
+            pageNumberDiv.style.pointerEvents = 'none';
+            iframeDoc.body.appendChild(pageNumberDiv);
+          }
+          
+          // Imprimer ce PDF
           iframe.contentWindow?.focus();
-          
-          // Ajouter la numérotation de page avec JavaScript pour ce PDF spécifique
-          const addPageNumbers = () => {
-            const iframeDoc = iframe.contentDocument;
-            if (!iframeDoc) return;
-            
-            // Créer un script pour ajouter la numérotation
-            const script = iframeDoc.createElement('script');
-            script.textContent = `
-              window.addEventListener('beforeprint', function() {
-                // Supprimer tous les anciens numéros de page de ce document
-                document.querySelectorAll('.page-number').forEach(el => el.remove());
-                
-                // Estimer le nombre de pages pour ce document spécifique
-                const bodyHeight = document.body.scrollHeight;
-                const pageHeight = 1122; // A4 height in pixels (approximate)
-                const totalPages = Math.max(1, Math.ceil(bodyHeight / pageHeight));
-                
-                // Ajouter les numéros de page en recommençant à 1 pour ce PDF
-                for (let i = 1; i <= totalPages; i++) {
-                  const pageNum = document.createElement('div');
-                  pageNum.className = 'page-number';
-                  pageNum.textContent = i + '/' + totalPages;
-                  pageNum.style.position = 'fixed';
-                  pageNum.style.bottom = '10mm';
-                  pageNum.style.right = '10mm';
-                  pageNum.style.fontSize = '10px';
-                  pageNum.style.color = '#666';
-                  pageNum.style.zIndex = '1000';
-                  pageNum.style.pointerEvents = 'none';
-                  document.body.appendChild(pageNum);
-                }
-              });
-            `;
-            iframeDoc.head.appendChild(script);
-            
-            // Déclencher l'événement beforeprint pour ce document spécifique
-            iframe.contentWindow?.dispatchEvent(new Event('beforeprint'));
-          };
-          
-          addPageNumbers();
           iframe.contentWindow?.print();
           
           // Nettoyer l'iframe après impression
@@ -330,8 +329,9 @@ export default function ChantierDetail() {
             if (document.body.contains(iframe)) {
               document.body.removeChild(iframe);
             }
-          }, 1000);
-        }, 200); // Augmenter le délai pour s'assurer que le contenu est chargé
+          }, 1500);
+        }, 300);
+        
       } catch (error) {
         console.error('Erreur lors de l\'export PDF pour la qualité:', q.name, error);
       }
