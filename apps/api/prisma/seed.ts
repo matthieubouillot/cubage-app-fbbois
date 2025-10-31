@@ -1,20 +1,21 @@
-import { PrismaClient } from "@prisma/client";
-import bcrypt from "bcrypt";
+import { PrismaClient } from '@prisma/client';
+import bcrypt from 'bcrypt';
 
 const prisma = new PrismaClient();
 
-// Mot de passe par défaut (à communiquer puis à faire changer)
-const DEFAULT_PWD = "fbbois2025!";
+async function main() {
+  console.log('🌱 Starting database seeding...');
 
-async function seedUsers() {
-  const hash = await bcrypt.hash(DEFAULT_PWD, 10);
+  // Créer les utilisateurs
+  console.log('👥 Creating users...');
+  const hashedPassword = await bcrypt.hash('fbbois2025!', 10);
 
   const users = [
     // --- BÛCHERONS (plages de numérotation) ---
     {
       lastName: "Tracoulat",
       firstName: "Donovan",
-      role: "BUCHERON",
+      roles: ["BUCHERON"],
       numStart: 1,
       numEnd: 1000,
       phone: "0668362351",
@@ -23,7 +24,7 @@ async function seedUsers() {
     {
       lastName: "Talaron",
       firstName: "Kentin",
-      role: "BUCHERON",
+      roles: ["BUCHERON"],
       numStart: 1001,
       numEnd: 2000,
       phone: "0629969210",
@@ -32,7 +33,7 @@ async function seedUsers() {
     {
       lastName: "Gibert",
       firstName: "Corentin",
-      role: "BUCHERON",
+      roles: ["BUCHERON"],
       numStart: 2001,
       numEnd: 3000,
       phone: "0628040389",
@@ -41,7 +42,7 @@ async function seedUsers() {
     {
       lastName: "Montélimar",
       firstName: "Alexandre",
-      role: "BUCHERON",
+      roles: ["BUCHERON"],
       numStart: 3001,
       numEnd: 4000,
       phone: "0605215645",
@@ -50,7 +51,7 @@ async function seedUsers() {
     {
       lastName: "Charreyron",
       firstName: "Antonin",
-      role: "BUCHERON",
+      roles: ["BUCHERON"],
       numStart: 4001,
       numEnd: 5000,
       phone: "0760337082",
@@ -59,7 +60,7 @@ async function seedUsers() {
     {
       lastName: "Paccalet",
       firstName: "Lynce",
-      role: "BUCHERON",
+      roles: ["BUCHERON"],
       numStart: 5001,
       numEnd: 6000,
       phone: "0618227034",
@@ -68,7 +69,7 @@ async function seedUsers() {
     {
       lastName: "Lillio",
       firstName: "Baptiste",
-      role: "BUCHERON",
+      roles: ["BUCHERON"],
       numStart: 6001,
       numEnd: 7000,
       phone: "0784545395",
@@ -79,7 +80,7 @@ async function seedUsers() {
     {
       lastName: "Bouchet",
       firstName: "Florian",
-      role: "SUPERVISEUR",
+      roles: ["SUPERVISEUR"],
       numStart: 11001,
       numEnd: 12000,
       phone: "0761503643",
@@ -88,100 +89,74 @@ async function seedUsers() {
     {
       lastName: "Combes",
       firstName: "Simon",
-      role: "SUPERVISEUR",
+      roles: ["SUPERVISEUR"],
       numStart: 10001,
       numEnd: 11000,
       phone: "0764024451",
       email: "simon.combes@hotmail.fr",
     },
-  ] as const;
+
+    // --- UTILISATEURS AVEC RÔLES MULTIPLES ---
+    {
+      lastName: "Martin",
+      firstName: "Pierre",
+      roles: ["SUPERVISEUR", "DEBARDEUR"],
+      numStart: 12001,
+      numEnd: 13000,
+      phone: "0612345678",
+      email: "pierre.martin@example.com",
+    },
+    {
+      lastName: "Durand",
+      firstName: "Jean",
+      roles: ["BUCHERON", "DEBARDEUR"],
+      numStart: 13001,
+      numEnd: 14000,
+      phone: "0623456789",
+      email: "jean.durand@example.com",
+    },
+
+    // --- DÉBARDEURS ---
+    {
+      lastName: "Leroy",
+      firstName: "Michel",
+      roles: ["DEBARDEUR"],
+      numStart: 14001,
+      numEnd: 15000,
+      phone: "0634567890",
+      email: "michel.leroy@example.com",
+    },
+    {
+      lastName: "Moreau",
+      firstName: "Claude",
+      roles: ["DEBARDEUR"],
+      numStart: 15001,
+      numEnd: 16000,
+      phone: "0645678901",
+      email: "claude.moreau@example.com",
+    },
+  ];
 
   for (const u of users) {
     await prisma.user.upsert({
       where: { email: u.email },
       update: {},
-      create: { ...u, password: hash },
-    });
-  }
-
-}
-
-async function seedEssences() {
-  const essences = [
-    {
-      name: "Sapin",
-      qualites: [
-        { name: "Palette", pourcentageEcorce: 10 },
-        { name: "Emballage", pourcentageEcorce: 10 },
-        { name: "Charpente Moulin", pourcentageEcorce: 10 },
-        { name: "Charpente Arnaud", pourcentageEcorce: 10 },
-        { name: "Poteaux", pourcentageEcorce: 10 },
-        { name: "Écorcé", pourcentageEcorce: 0 },
-      ],
-    },
-    {
-      name: "Épicéa",
-      qualites: [
-        { name: "Palette", pourcentageEcorce: 10 },
-        { name: "Emballage", pourcentageEcorce: 10 },
-        { name: "Charpente", pourcentageEcorce: 10 },
-        { name: "Écorcé", pourcentageEcorce: 0 },
-      ],
-    },
-    {
-      name: "Douglas",
-      qualites: [
-        { name: "Palette", pourcentageEcorce: 12 },
-        { name: "Emballage", pourcentageEcorce: 12 },
-        { name: "Charpente", pourcentageEcorce: 12 },
-        { name: "Écorcé", pourcentageEcorce: 0 },
-      ],
-    },
-    {
-      name: "Pin",
-      qualites: [
-        { name: "Palette", pourcentageEcorce: 8 },
-        { name: "Emballage", pourcentageEcorce: 8 },
-        { name: "Charpente", pourcentageEcorce: 8 },
-      ],
-    },
-    {
-      name: "Feuillus",
-      qualites: [
-        { name: "Chauffage", pourcentageEcorce: 0 },
-        { name: "Sciage", pourcentageEcorce: 0 },
-      ],
-    },
-  ];
-
-  for (const e of essences) {
-    await prisma.essence.upsert({
-      where: { name: e.name },
-      update: {},
-      create: {
-        name: e.name,
-        qualites: {
-          create: e.qualites.map((q) => ({
-            name: q.name,
-            pourcentageEcorce: q.pourcentageEcorce,
-          })),
-        },
+      create: { 
+        ...u, 
+        roles: u.roles as any, // Cast pour éviter les erreurs TypeScript
+        password: hashedPassword 
       },
     });
   }
 
-}
-
-async function main() {
-  await seedUsers();
-  await seedEssences();
+  console.log('✅ Database seeding completed successfully!');
 }
 
 main()
   .catch((e) => {
-    console.error(e);
+    console.error('❌ Error seeding database:', e);
     process.exit(1);
   })
   .finally(async () => {
-    prisma.$disconnect();
+    await prisma.$disconnect();
   });

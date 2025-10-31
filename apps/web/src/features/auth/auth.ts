@@ -3,7 +3,7 @@ export type User = {
   firstName: string;
   lastName: string;
   email: string;
-  role: "BUCHERON" | "SUPERVISEUR";
+  roles: ("BUCHERON" | "SUPERVISEUR" | "DEBARDEUR")[];
   numStart?: number;
   numEnd?: number;
 };
@@ -37,4 +37,33 @@ export function isAuthenticated() {
 
 export function logout() {
   clearSession();
+}
+
+// Fonctions utilitaires pour gérer les rôles
+export function hasRole(user: User | null, role: "BUCHERON" | "SUPERVISEUR" | "DEBARDEUR"): boolean {
+  return user?.roles?.includes(role) ?? false;
+}
+
+export function hasAnyRole(user: User | null, roles: ("BUCHERON" | "SUPERVISEUR" | "DEBARDEUR")[]): boolean {
+  return user?.roles?.some(role => roles.includes(role)) ?? false;
+}
+
+export function isSuperviseur(user: User | null): boolean {
+  return hasRole(user, "SUPERVISEUR");
+}
+
+export function isBucheron(user: User | null): boolean {
+  return hasRole(user, "BUCHERON");
+}
+
+export function isDebardeur(user: User | null): boolean {
+  return hasRole(user, "DEBARDEUR");
+}
+
+export function canWrite(user: User | null): boolean {
+  return hasAnyRole(user, ["SUPERVISEUR", "BUCHERON"]);
+}
+
+export function canRead(user: User | null): boolean {
+  return hasAnyRole(user, ["SUPERVISEUR", "BUCHERON", "DEBARDEUR"]);
 }

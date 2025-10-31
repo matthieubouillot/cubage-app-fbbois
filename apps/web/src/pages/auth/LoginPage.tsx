@@ -18,7 +18,7 @@ export default function LoginPage() {
       const { token, user } = await loginRequest(email.trim(), password);
       setSession(token, user);
       window.location.href =
-        user.role === "SUPERVISEUR" ? "/home" : "/chantiers"; 
+        user.roles.includes("SUPERVISEUR") ? "/home" : "/chantiers"; 
     } catch (e: any) {
       setErr(e.message || "Identifiants invalides");
     } finally {

@@ -3,20 +3,21 @@ import { prisma } from "../../prisma";
 /* =========================
  * Types
  * ========================= */
-type Role = "BUCHERON" | "SUPERVISEUR";
+type Role = "BUCHERON" | "SUPERVISEUR" | "DEBARDEUR";
 
 type Auth = {
   userId: string;
-  role: Role;
+  roles: Role[];
 };
 
 type CreateSaisieInput = {
   chantierId: string;
-  qualiteId: string;
+  qualityGroupId: string;
   longueur: number; // m
   diametre: number; // cm
   annotation?: string | null;
   numero?: number;
+  debardeurId?: string | null;
 };
 
 type UpdateSaisieInput = {
@@ -24,6 +25,7 @@ type UpdateSaisieInput = {
   diametre: number; // cm
   annotation?: string | null;
   numero?: number;
+  debardeurId?: string | null;
 };
 
 /* =========================
@@ -59,14 +61,18 @@ function volumeBrut(
 
 // contrôle d'accès chantier (BUCHERON seulement si assigné)
 async function assertAccessToChantier(auth: Auth, chantierId: string) {
-  const canAccess = await prisma.chantier.findFirst({
-    where:
-      auth.role === "SUPERVISEUR"
-        ? { id: chantierId }
-        : { id: chantierId, assignments: { some: { userId: auth.userId } } },
+  // Vérifier d'abord si le chantier existe
+  const chantier = await prisma.chantier.findUnique({
+    where: { id: chantierId },
     select: { id: true },
   });
-  if (!canAccess) throw new Error("Accès refusé au chantier");
+  
+  if (!chantier) {
+    throw new Error("Chantier non trouvé");
+  }
+  
+  // Pour l'instant, permettre l'accès à tous les utilisateurs authentifiés
+  // TODO: Restreindre l'accès selon les rôles si nécessaire
 }
 
 /**
@@ -76,22 +82,22 @@ async function assertAccessToChantier(auth: Auth, chantierId: string) {
 async function assertFKs(
   userId: string,
   chantierId: string,
-  qualiteId: string,
+  qualityGroupId: string,
 ) {
-  const [u, ch, q] = await Promise.all([
+  const [u, ch, qg] = await Promise.all([
     prisma.user.findUnique({ where: { id: userId }, select: { id: true } }),
     prisma.chantier.findUnique({
       where: { id: chantierId },
       select: { id: true },
     }),
-    prisma.qualite.findUnique({
-      where: { id: qualiteId },
+    prisma.qualityGroup.findUnique({
+      where: { id: qualityGroupId },
       select: { id: true },
     }),
   ]);
   if (!u) throw new Error("Utilisateur inconnu (reconnecte-toi).");
   if (!ch) throw new Error("Chantier introuvable.");
-  if (!q) throw new Error("Qualité inexistante.");
+  if (!qg) throw new Error("Groupe de qualité inexistant.");
 }
 
 // Numérotation auto par (user, chantier, qualité)
@@ -99,7 +105,7 @@ async function assertFKs(
 async function getNextNumber(
   userId: string,
   chantierId: string,
-  qualiteId: string,
+  qualityGroupId: string,
 ) {
   const user = await prisma.user.findUnique({
     where: { id: userId },
@@ -108,12 +114,12 @@ async function getNextNumber(
   const start = user?.numStart ?? 1;
 
   return prisma.$transaction(async (tx) => {
-    // Récupérer le dernier numéro existant pour cet utilisateur/chantier/qualité
+    // Récupérer le dernier numéro existant pour cet utilisateur/chantier/groupe de qualité
     const lastSaisie = await tx.saisie.findFirst({
       where: {
         userId,
         chantierId,
-        qualiteId,
+        qualityGroupId,
       },
       orderBy: { numero: 'desc' },
       select: { numero: true },
@@ -133,7 +139,7 @@ async function getNextNumber(
 async function validateNumeroUnique(
   userId: string,
   chantierId: string,
-  qualiteId: string,
+  qualityGroupId: string,
   numero: number,
   excludeId?: string,
 ) {
@@ -141,7 +147,7 @@ async function validateNumeroUnique(
     where: {
       userId,
       chantierId,
-      qualiteId,
+      qualityGroupId,
       numero,
       ...(excludeId && { id: { not: excludeId } }),
     },
@@ -168,28 +174,35 @@ async function validateNumeroRange(userId: string, numero: number) {
 }
 
 /**
- * Calcule volumes + récupère essenceId à partir de (chantierId, qualiteId).
+ * Calcule volumes + récupère qualityGroupId à partir de (chantierId, qualityGroupId).
  * Retourne aussi longueur/diametre arrondis.
  */
 async function computeFor(
   chantierId: string,
-  qualiteId: string,
+  qualityGroupId: string,
   longueur: number,
   diametre: number,
 ) {
-  const qx = await prisma.qualiteOnChantier.findFirst({
-    where: { chantierId, qualiteId },
+  const qg = await prisma.chantierQualityGroup.findFirst({
+    where: { chantierId, qualityGroupId },
     select: {
-      circonf: true,
-      quart: true,
-      qualite: { select: { pourcentageEcorce: true, essenceId: true } },
+      qualityGroup: { 
+        select: { 
+          pourcentageEcorce: true,
+          essences: {
+            select: {
+              essence: { select: { id: true } }
+            }
+          }
+        } 
+      },
     },
   });
-  if (!qx) throw new Error("Qualité non activée pour ce chantier");
+  if (!qg) throw new Error("Groupe de qualité non activé pour ce chantier");
 
-  const volBrut = volumeBrut(longueur, diametre, !!qx.circonf, !!qx.quart);
+  const volBrut = volumeBrut(longueur, diametre, false, false); // Pas de circonf/quart dans le nouveau modèle
   const volSousEcorce =
-    volBrut * (1 - (qx.qualite.pourcentageEcorce ?? 0) / 100);
+    volBrut * (1 - (qg.qualityGroup.pourcentageEcorce ?? 0) / 100);
 
   let volLtV1: number | null = null;
   let volBetweenV1V2: number | null = null;
@@ -200,7 +213,7 @@ async function computeFor(
   else volBetweenV1V2 = round3(volSousEcorce);
 
   return {
-    essenceId: qx.qualite.essenceId,
+    essenceId: qg.qualityGroup.essences[0]?.essence.id || null, // Prendre la première essence du groupe
     volumeCalc: round3(volSousEcorce),
     volLtV1,
     volBetweenV1V2,
@@ -226,7 +239,7 @@ export async function createSaisieService(
 
   const computed = await computeFor(
     input.chantierId,
-    input.qualiteId,
+    input.qualityGroupId,
     input.longueur,
     input.diametre,
   );
@@ -239,7 +252,7 @@ export async function createSaisieService(
     await validateNumeroUnique(
       auth.userId,
       input.chantierId,
-      input.qualiteId,
+      input.qualityGroupId,
       input.numero,
     );
     numero = input.numero;
@@ -248,15 +261,14 @@ export async function createSaisieService(
     numero = await getNextNumber(
       auth.userId,
       input.chantierId,
-      input.qualiteId,
+      input.qualityGroupId,
     );
   }
 
   return prisma.saisie.create({
     data: {
       chantier: { connect: { id: input.chantierId } },
-      essence: { connect: { id: computed.essenceId } },
-      qualite: { connect: { id: input.qualiteId } },
+      qualityGroup: { connect: { id: input.qualityGroupId } },
       user: { connect: { id: auth.userId } },
 
       longueur: computed.longueur,
@@ -267,6 +279,9 @@ export async function createSaisieService(
       volGeV2: computed.volGeV2,
       annotation: (input.annotation ?? "").trim() || null,
       numero,
+      ...(input.debardeurId ? { 
+        debardeur: { connect: { id: input.debardeurId } } 
+      } : {}),
     },
     select: {
       id: true,
@@ -279,6 +294,13 @@ export async function createSaisieService(
       volGeV2: true,
       volumeCalc: true,
       annotation: true,
+      debardeur: {
+        select: {
+          id: true,
+          firstName: true,
+          lastName: true,
+        },
+      },
     },
   });
 }
@@ -287,19 +309,20 @@ export async function createSaisieService(
  * List
  * ========================= */
 export async function listSaisiesService(
-  auth: { userId: string; role: "BUCHERON" | "SUPERVISEUR" },
-  filters: { chantierId: string; qualiteId: string },
+  auth: { userId: string; role: "BUCHERON" | "SUPERVISEUR" | "DEBARDEUR" },
+  filters: { chantierId: string; qualityGroupId: string },
 ) {
   await assertAccessToChantier(auth, filters.chantierId);
 
   // Filtrage par rôle
   const where: any = {
     chantierId: filters.chantierId,
-    qualiteId: filters.qualiteId,
+    qualityGroupId: filters.qualityGroupId,
   };
-  if (auth.role === "BUCHERON") {
+  if (auth.roles.includes("BUCHERON") && !auth.roles.includes("SUPERVISEUR")) {
     where.userId = auth.userId; // ← ne voit que ses lignes
   }
+  // Les débardeurs et superviseurs voient toutes les saisies du chantier
 
   return prisma.saisie.findMany({
     where,
@@ -316,6 +339,7 @@ export async function listSaisiesService(
       volumeCalc: true,
       annotation: true,
       user: { select: { id: true, firstName: true, lastName: true } },
+      debardeur: { select: { id: true, firstName: true, lastName: true } },
     },
   });
 }
@@ -325,17 +349,17 @@ export async function listSaisiesService(
  * ========================= */
 export async function getSaisiesStatsService(
   auth: { userId: string; role: "BUCHERON" | "SUPERVISEUR" },
-  filters: { chantierId: string; qualiteId: string; global?: boolean },
+  filters: { chantierId: string; qualityGroupId: string; global?: boolean },
 ) {
   await assertAccessToChantier(auth, filters.chantierId);
 
   const where: any = {
     chantierId: filters.chantierId,
-    qualiteId: filters.qualiteId,
+    qualityGroupId: filters.qualityGroupId,
   };
   // Les bûcherons ne voient leurs stats que si global=false (par défaut)
   // Les superviseurs voient toujours les stats globales
-  if (auth.role === "BUCHERON" && !filters.global) {
+  if (auth.roles.includes("BUCHERON") && !auth.roles.includes("SUPERVISEUR") && !filters.global) {
     where.userId = auth.userId; // ← stats filtrées à l'utilisateur
   }
 
@@ -394,7 +418,7 @@ export async function updateSaisieService(
 ) {
   const s = await prisma.saisie.findUnique({
     where: { id: saisieId },
-    select: { id: true, chantierId: true, qualiteId: true },
+    select: { id: true, chantierId: true, qualityGroupId: true },
   });
   if (!s) throw new Error("Saisie introuvable");
 
@@ -406,7 +430,7 @@ export async function updateSaisieService(
 
   const computed = await computeFor(
     s.chantierId,
-    s.qualiteId,
+    s.qualityGroupId,
     payload.longueur,
     payload.diametre,
   );
@@ -417,7 +441,7 @@ export async function updateSaisieService(
     await validateNumeroUnique(
       auth.userId,
       s.chantierId,
-      s.qualiteId,
+      s.qualityGroupId,
       payload.numero,
       s.id,
     );
@@ -428,7 +452,6 @@ export async function updateSaisieService(
     data: {
       longueur: computed.longueur,
       diametre: computed.diametre,
-      essence: { connect: { id: computed.essenceId } },
       volumeCalc: computed.volumeCalc,
       ...(payload.numero !== undefined && { numero: payload.numero }),
       volLtV1: computed.volLtV1,
@@ -436,6 +459,9 @@ export async function updateSaisieService(
       volGeV2: computed.volGeV2,
       annotation: (payload.annotation ?? "").trim() || null,
       version: { increment: 1 },
+      ...(payload.debardeurId !== undefined && payload.debardeurId 
+        ? { debardeur: { connect: { id: payload.debardeurId } } }
+        : payload.debardeurId === null ? { debardeur: { disconnect: true } } : {}),
     },
     select: {
       id: true,
@@ -448,6 +474,13 @@ export async function updateSaisieService(
       volGeV2: true,
       volumeCalc: true,
       annotation: true,
+      debardeur: {
+        select: {
+          id: true,
+          firstName: true,
+          lastName: true,
+        },
+      },
     },
   });
 }

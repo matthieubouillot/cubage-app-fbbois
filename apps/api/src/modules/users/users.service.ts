@@ -1,7 +1,7 @@
 import { prisma } from "../../prisma";
 import * as bcrypt from "bcryptjs";
 
-export type Role = "BUCHERON" | "SUPERVISEUR";
+export type Role = "BUCHERON" | "SUPERVISEUR" | "DEBARDEUR";
 
 const NAME_RE = /^[A-Za-zÀ-ÖØ-öø-ÿ' -]{2,}$/;
 const PHONE_RE = /^[0-9+().\s-]{6,20}$/;
@@ -26,14 +26,18 @@ async function hasOverlappingRange(
 /** Liste triée par plage num (numStart puis numEnd). */
 export async function getUsersService(role?: Role) {
   return prisma.user.findMany({
-    where: role ? { role } : undefined,
+    where: role ? { 
+      roles: {
+        has: role
+      }
+    } : undefined,
     select: {
       id: true,
       firstName: true,
       lastName: true,
       email: true,
       phone: true,
-      role: true,
+      roles: true,
       numStart: true,
       numEnd: true,
       createdAt: true,
@@ -51,7 +55,7 @@ export async function getUserByIdService(id: string) {
       lastName: true,
       email: true,
       phone: true,
-      role: true,
+      roles: true,
       numStart: true,
       numEnd: true,
       createdAt: true,
@@ -63,7 +67,7 @@ export async function getUserByIdService(id: string) {
 export async function createUserService(input: {
   firstName: string;
   lastName: string;
-  role: Role;
+  roles: Role[];
   email: string;
   phone: string;
   numStart: number;
@@ -93,7 +97,7 @@ export async function createUserService(input: {
     data: {
       firstName: input.firstName.trim(),
       lastName: input.lastName.trim(),
-      role: input.role,
+      roles: input.roles,
       email: input.email.toLowerCase().trim(),
       phone: input.phone.trim(),
       password: hash,
@@ -104,7 +108,7 @@ export async function createUserService(input: {
       id: true,
       firstName: true,
       lastName: true,
-      role: true,
+      roles: true,
       email: true,
       phone: true,
       numStart: true,
@@ -122,7 +126,7 @@ export async function updateUserService(
   input: {
     firstName: string;
     lastName: string;
-    role: Role;
+    roles: Role[];
     phone: string;
     numStart: number;
     numEnd: number;
@@ -147,7 +151,7 @@ export async function updateUserService(
     data: {
       firstName: input.firstName.trim(),
       lastName: input.lastName.trim(),
-      role: input.role,
+      roles: input.roles,
       phone: input.phone.trim(),
       numStart: input.numStart,
       numEnd: input.numEnd,
@@ -156,7 +160,7 @@ export async function updateUserService(
       id: true,
       firstName: true,
       lastName: true,
-      role: true,
+      roles: true,
       email: true,
       phone: true,
       numStart: true,
@@ -169,6 +173,33 @@ export async function updateUserService(
 }
 
 export async function deleteUserService(id: string) {
+  // Vérifier que l'utilisateur existe
+  const user = await prisma.user.findUnique({
+    where: { id }
+  });
+
+  if (!user) {
+    throw new Error("Utilisateur introuvable");
+  }
+
+  // Supprimer toutes les données liées à l'utilisateur dans l'ordre correct
+  // 1. Supprimer les saisies
+  await prisma.saisie.deleteMany({
+    where: { userId: id }
+  });
+
+  // 2. Supprimer les assignations (bûcherons)
+  await prisma.assignment.deleteMany({
+    where: { userId: id }
+  });
+
+  // 3. Supprimer les tokens de réinitialisation de mot de passe
+  await prisma.passwordResetToken.deleteMany({
+    where: { userId: id }
+  });
+
+  // 4. Enfin, supprimer l'utilisateur lui-même
   await prisma.user.delete({ where: { id } });
+  
   return { ok: true };
 }

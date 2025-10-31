@@ -1,453 +1,738 @@
 import { prisma } from "../../prisma";
 
-// Input reçu depuis le controller (zod)
-type CreateInput = {
-  referenceLot: string;
-  convention: string;
-  proprietaire: string;
-  proprietaireFirstName: string;
-  commune: string;
-  lieuDit: string;
-  qualiteIds: string[];
-  bucheronIds: string[];
-  section: string;
-  parcel: string;
-};
+export async function listChantiersService(user: {
+  userId: string;
+  roles: ("BUCHERON" | "SUPERVISEUR" | "DEBARDEUR")[];
+}) {
+  try {
+    // Déterminer le filtre en fonction du rôle
+    const where = user.roles.includes("SUPERVISEUR")
+      ? {} // Les superviseurs voient tous les chantiers
+      : {
+          OR: [
+            // Chantiers où l'utilisateur est assigné comme bûcheron
+            { assignments: { some: { userId: user.userId } } },
+            // Chantiers où l'utilisateur est assigné comme débardeur
+            { debardeurAssignments: { some: { userId: user.userId } } }
+          ]
+        };
 
-/**
- * Création d'un chantier à partir de qualités + bûcherons
- */
-export async function createChantierService(input: CreateInput) {
-  // 1) Vérifier les bûcherons (rôle BUCHERON)
-  const bucherons = await prisma.user.findMany({
-    where: { id: { in: input.bucheronIds }, role: "BUCHERON" },
-    select: { id: true },
-  });
-  if (bucherons.length !== input.bucheronIds.length) {
-    throw new Error("Un ou plusieurs utilisateurs ne sont pas des bûcherons");
-  }
-
-  // 2) Charger qualités
-  const qualites = await prisma.qualite.findMany({
-    where: { id: { in: input.qualiteIds } },
-    select: { id: true, essenceId: true },
-  });
-  if (qualites.length !== input.qualiteIds.length) {
-    throw new Error("Une ou plusieurs qualités sont introuvables");
-  }
-
-  // 3) Essences déduites
-  const essenceIds = Array.from(new Set(qualites.map((q) => q.essenceId)));
-
-  // 4) Transaction
-  return prisma.$transaction(async (tx) => {
-    const chantier = await tx.chantier.create({
-      data: {
-        referenceLot: input.referenceLot,
-        convention: input.convention,
-        proprietaire: input.proprietaire,
-        proprietaireFirstName: input.proprietaireFirstName,
-        commune: input.commune,
-        lieuDit: input.lieuDit,
-        section: input.section.toUpperCase(),
-        parcel: input.parcel,
-        createdAt: new Date(),
-        essences: { create: essenceIds.map((essenceId) => ({ essenceId })) },
-        assignments: {
-          create: input.bucheronIds.map((userId) => ({ userId })),
+    const rows = await prisma.chantier.findMany({
+      where,
+      orderBy: [{ createdAt: "desc" }, { numeroCoupe: "asc" }],
+      include: {
+        client: {
+          select: {
+            id: true,
+            firstName: true,
+            lastName: true,
+            email: true,
+            phone: true,
+            street: true,
+            postalCode: true,
+            city: true,
+            createdAt: true,
+          }
         },
-      },
-      select: {
-        id: true,
-        referenceLot: true,
-        convention: true,
-        proprietaire: true,
-        proprietaireFirstName: true,
-        commune: true,
-        lieuDit: true,
-        section: true,
-        parcel: true,
-        createdAt: true,
+        qualityGroups: {
+          include: {
+            qualityGroup: {
+              include: {
+                qualite: true,
+                scieur: true,
+                essences: {
+                  include: {
+                    essence: true
+                  }
+                },
+                lotConventions: true
+              }
+            }
+          }
+        },
+        assignments: {
+          include: {
+            user: true
+          }
+        },
+        debardeurAssignments: {
+          include: {
+            user: true
+          }
+        },
+        property: true
       },
     });
 
-    await tx.qualiteOnChantier.createMany({
-      data: input.qualiteIds.map((qualiteId) => ({
-        qualiteId,
-        chantierId: chantier.id,
+    return rows.map((r) => ({
+      id: r.id,
+      numeroCoupe: r.numeroCoupe,
+      section: r.property?.section || r.section,
+      parcel: r.property?.parcelle || r.parcel,
+      createdAt: r.createdAt,
+      client: r.client ? {
+        id: r.client.id,
+        firstName: r.client.firstName,
+        lastName: r.client.lastName,
+        email: r.client.email,
+        phone: r.client.phone,
+        street: r.client.street,
+        postalCode: r.client.postalCode,
+        city: r.client.city
+      } : null,
+      property: r.property ? {
+        id: r.property.id,
+        commune: r.property.commune,
+        lieuDit: r.property.lieuDit,
+        section: r.property.section,
+        parcelle: r.property.parcelle,
+        surfaceCadastrale: r.property.surfaceCadastrale ? Number(r.property.surfaceCadastrale) : null
+      } : null,
+      qualityGroups: r.qualityGroups.map(cqg => ({
+        id: cqg.qualityGroup.id,
+        name: cqg.qualityGroup.name,
+        category: cqg.qualityGroup.category,
+        pourcentageEcorce: cqg.qualityGroup.pourcentageEcorce,
+        qualite: {
+          id: cqg.qualityGroup.qualite.id,
+          name: cqg.qualityGroup.qualite.name
+        },
+        scieur: {
+          id: cqg.qualityGroup.scieur.id,
+          name: cqg.qualityGroup.scieur.name
+        },
+        essences: cqg.qualityGroup.essences.map(e => ({
+          id: e.essence.id,
+          name: e.essence.name
+        })),
+        lotConventions: cqg.qualityGroup.lotConventions ? [{
+          id: cqg.qualityGroup.lotConventions.id,
+          lot: cqg.qualityGroup.lotConventions.lot,
+          convention: cqg.qualityGroup.lotConventions.convention,
+          qualityGroupId: cqg.qualityGroup.lotConventions.qualityGroupId
+        }] : []
       })),
-      skipDuplicates: true,
-    });
+      bucherons: r.assignments.map(a => ({
+        id: a.user.id,
+        firstName: a.user.firstName,
+        lastName: a.user.lastName
+      })),
+      debardeurs: r.debardeurAssignments.map(a => ({
+        id: a.user.id,
+        firstName: a.user.firstName,
+        lastName: a.user.lastName
+      }))
+    }));
+  } catch (error) {
+    console.error('Error in listChantiersService:', error);
+    throw error;
+  }
+}
 
-    // Retour détaillé
-    const full = await tx.chantier.findUniqueOrThrow({
-      where: { id: chantier.id },
-      select: {
-        id: true,
-        referenceLot: true,
-        convention: true,
-        proprietaire: true,
-        proprietaireFirstName: true,
-        commune: true,
-        lieuDit: true,
-        section: true,
-        parcel: true,
-        createdAt: true,
-        essences: { select: { essence: { select: { id: true, name: true } } } },
-        qualites: {
+export async function getChantierByIdService(
+  user: { userId: string; roles: ("BUCHERON" | "SUPERVISEUR" | "DEBARDEUR")[] },
+  id: string,
+) {
+  try {
+    // Déterminer le filtre en fonction du rôle
+    const whereFilter = user.roles.includes("SUPERVISEUR")
+      ? { id }
+      : {
+          AND: [
+            { id },
+            {
+              OR: [
+                // Chantiers où l'utilisateur est assigné comme bûcheron
+                { assignments: { some: { userId: user.userId } } },
+                // Chantiers où l'utilisateur est assigné comme débardeur
+                { debardeurAssignments: { some: { userId: user.userId } } }
+              ]
+            }
+          ]
+        };
+
+    const r = await prisma.chantier.findFirst({
+      where: whereFilter,
+      include: {
+        client: {
           select: {
-            qualite: {
-              select: {
-                id: true,
-                name: true,
-                pourcentageEcorce: true,
-                essence: { select: { id: true, name: true } },
-              },
-            },
-          },
+            id: true,
+            firstName: true,
+            lastName: true,
+            email: true,
+            phone: true,
+            street: true,
+            postalCode: true,
+            city: true,
+            createdAt: true,
+          }
+        },
+        qualityGroups: {
+          include: {
+            qualityGroup: {
+              include: {
+                qualite: true,
+                scieur: true,
+                essences: {
+                  include: {
+                    essence: true
+                  }
+                },
+                lotConventions: true
+              }
+            }
+          }
         },
         assignments: {
-          select: {
-            user: {
-              select: { id: true, firstName: true, lastName: true, role: true },
-            },
-          },
+          include: {
+            user: true
+          }
         },
+        debardeurAssignments: {
+          include: {
+            user: true
+          }
+        },
+        property: true
       },
     });
+
+    if (!r) return null;
 
     return {
-      id: full.id,
-      referenceLot: full.referenceLot,
-      convention: full.convention,
-      proprietaire: full.proprietaire,
-      proprietaireFirstName: full.proprietaireFirstName,
-      commune: full.commune,
-      lieuDit: full.lieuDit,
-      section: full.section,
-      parcel: full.parcel,
-      createdAt: full.createdAt,
-      essences: full.essences.map((e) => e.essence),
-      qualites: full.qualites.map((q) => q.qualite),
-      bucherons: full.assignments
-        .map((a) => a.user)
-        .filter((u) => u.role === "BUCHERON"),
+      id: r.id,
+      numeroCoupe: r.numeroCoupe,
+      section: r.property?.section || r.section,
+      parcel: r.property?.parcelle || r.parcel,
+      createdAt: r.createdAt,
+      client: r.client ? {
+        id: r.client.id,
+        firstName: r.client.firstName,
+        lastName: r.client.lastName,
+        email: r.client.email,
+        phone: r.client.phone,
+        street: r.client.street,
+        postalCode: r.client.postalCode,
+        city: r.client.city
+      } : null,
+      property: r.property ? {
+        id: r.property.id,
+        commune: r.property.commune,
+        lieuDit: r.property.lieuDit,
+        section: r.property.section,
+        parcelle: r.property.parcelle,
+        surfaceCadastrale: r.property.surfaceCadastrale ? Number(r.property.surfaceCadastrale) : null
+      } : null,
+      qualityGroups: r.qualityGroups.map(cqg => ({
+        id: cqg.qualityGroup.id,
+        name: cqg.qualityGroup.name,
+        category: cqg.qualityGroup.category,
+        pourcentageEcorce: cqg.qualityGroup.pourcentageEcorce,
+        qualite: {
+          id: cqg.qualityGroup.qualite.id,
+          name: cqg.qualityGroup.qualite.name
+        },
+        scieur: {
+          id: cqg.qualityGroup.scieur.id,
+          name: cqg.qualityGroup.scieur.name
+        },
+        essences: cqg.qualityGroup.essences.map(e => ({
+          id: e.essence.id,
+          name: e.essence.name
+        })),
+        lotConventions: cqg.qualityGroup.lotConventions ? [{
+          id: cqg.qualityGroup.lotConventions.id,
+          lot: cqg.qualityGroup.lotConventions.lot,
+          convention: cqg.qualityGroup.lotConventions.convention,
+          qualityGroupId: cqg.qualityGroup.lotConventions.qualityGroupId
+        }] : []
+      })),
+      bucherons: r.assignments.map(a => ({
+        id: a.user.id,
+        firstName: a.user.firstName,
+        lastName: a.user.lastName
+      })),
+      debardeurAssignments: r.debardeurAssignments.map(a => ({
+        id: a.user.id,
+        firstName: a.user.firstName,
+        lastName: a.user.lastName
+      }))
     };
-  });
+  } catch (error) {
+    console.error('Error in getChantierByIdService:', error);
+    throw error;
+  }
+}
+
+export async function createChantierService(input: {
+  numeroCoupe: string;
+  clientId: string;
+  propertyId: string;
+  qualityGroupIds: string[];
+  bucheronIds: string[];
+  debardeurIds?: string[]; // Nouveau : IDs des débardeurs
+  lotConventions?: Array<{
+    qualityGroupId: string;
+    lot?: string;
+    convention?: string;
+  }>;
+}) {
+  try {
+    // Créer le chantier
+    const chantier = await prisma.chantier.create({
+      data: {
+        numeroCoupe: input.numeroCoupe,
+        clientId: input.clientId,
+        propertyId: input.propertyId,
+        qualityGroups: {
+          create: input.qualityGroupIds.map(qualityGroupId => ({
+            qualityGroupId
+          }))
+        },
+        assignments: {
+          create: input.bucheronIds.map(bucheronId => ({
+            userId: bucheronId
+          }))
+        },
+        debardeurAssignments: input.debardeurIds ? {
+          create: input.debardeurIds.map(debardeurId => ({
+            userId: debardeurId
+          }))
+        } : undefined
+      },
+      include: {
+        client: {
+          select: {
+            id: true,
+            firstName: true,
+            lastName: true,
+            email: true,
+            phone: true,
+            street: true,
+            postalCode: true,
+            city: true,
+            createdAt: true,
+          }
+        },
+        qualityGroups: {
+          include: {
+            qualityGroup: {
+              include: {
+                qualite: true,
+                scieur: true,
+                essences: {
+                  include: {
+                    essence: true
+                  }
+                },
+                lotConventions: true
+              }
+            }
+          }
+        },
+        assignments: {
+          include: {
+            user: true
+          }
+        },
+        debardeurAssignments: {
+          include: {
+            user: true
+          }
+        }
+      }
+    });
+
+    // Créer les lots/conventions si fournis
+    if (input.lotConventions && input.lotConventions.length > 0) {
+      for (const lotConv of input.lotConventions) {
+        if (lotConv.lot || lotConv.convention) {
+          await prisma.lotConvention.upsert({
+            where: {
+              qualityGroupId: lotConv.qualityGroupId
+            },
+            update: {
+              lot: lotConv.lot || '',
+              convention: lotConv.convention || ''
+            },
+            create: {
+              lot: lotConv.lot || '',
+              convention: lotConv.convention || '',
+              qualityGroupId: lotConv.qualityGroupId
+            }
+          });
+        }
+      }
+    }
+
+    return {
+      id: chantier.id,
+      numeroCoupe: chantier.numeroCoupe,
+      section: chantier.section,
+      parcel: chantier.parcel,
+      createdAt: chantier.createdAt,
+      client: chantier.client ? {
+        id: chantier.client.id,
+        firstName: chantier.client.firstName,
+        lastName: chantier.client.lastName,
+        email: chantier.client.email,
+        phone: chantier.client.phone,
+        street: chantier.client.street,
+        postalCode: chantier.client.postalCode,
+        city: chantier.client.city
+      } : null,
+      qualityGroups: chantier.qualityGroups.map(cqg => ({
+        id: cqg.qualityGroup.id,
+        name: cqg.qualityGroup.name,
+        category: cqg.qualityGroup.category,
+        pourcentageEcorce: cqg.qualityGroup.pourcentageEcorce,
+        qualite: {
+          id: cqg.qualityGroup.qualite.id,
+          name: cqg.qualityGroup.qualite.name
+        },
+        scieur: {
+          id: cqg.qualityGroup.scieur.id,
+          name: cqg.qualityGroup.scieur.name
+        },
+        essences: cqg.qualityGroup.essences.map(e => ({
+          id: e.essence.id,
+          name: e.essence.name
+        })),
+        lotConventions: cqg.qualityGroup.lotConventions ? [{
+          id: cqg.qualityGroup.lotConventions.id,
+          lot: cqg.qualityGroup.lotConventions.lot,
+          convention: cqg.qualityGroup.lotConventions.convention,
+          qualityGroupId: cqg.qualityGroup.lotConventions.qualityGroupId
+        }] : []
+      })),
+      bucherons: chantier.assignments.map(a => ({
+        id: a.user.id,
+        firstName: a.user.firstName,
+        lastName: a.user.lastName
+      }))
+    };
+  } catch (error) {
+    console.error('Error in createChantierService:', error);
+    throw error;
+  }
 }
 
 export async function updateChantierService(
-  user: { userId: string; role: "BUCHERON" | "SUPERVISEUR" },
-  id: string,
-  input: {
-    referenceLot: string;
-    convention: string;
-    proprietaire: string;
-    proprietaireFirstName: string;
-    commune: string;
-    lieuDit: string;
-    section: string;
-    parcel: string;
-    qualiteIds: string[];
-    bucheronIds: string[];
+  user: {
+    userId: string;
+    roles: ("BUCHERON" | "SUPERVISEUR" | "DEBARDEUR")[];
   },
+  chantierId: string,
+  input: {
+    numeroCoupe?: string;
+    clientId?: string;
+    propertyId?: string;
+    qualityGroupIds?: string[];
+    bucheronIds?: string[];
+    debardeurIds?: string[];
+    lotConventions?: Array<{
+      qualityGroupId: string;
+      lot?: string;
+      convention?: string;
+    }>;
+  }
 ) {
-  if (user.role !== "SUPERVISEUR") throw new Error("Accès refusé");
-
-  // vérifie que le chantier existe
-  const exists = await prisma.chantier.findUnique({
-    where: { id },
-    select: { id: true },
-  });
-  if (!exists) throw new Error("Chantier introuvable");
-
-  // vérifie bûcherons
-  const buchs = await prisma.user.findMany({
-    where: { id: { in: input.bucheronIds }, role: "BUCHERON" },
-    select: { id: true },
-  });
-  if (buchs.length !== input.bucheronIds.length) {
-    throw new Error("Un ou plusieurs utilisateurs ne sont pas des bûcherons");
-  }
-
-  // charge qualités et déduit essences
-  const qualites = await prisma.qualite.findMany({
-    where: { id: { in: input.qualiteIds } },
-    select: { id: true, essenceId: true },
-  });
-  if (qualites.length !== input.qualiteIds.length) {
-    throw new Error("Une ou plusieurs qualités sont introuvables");
-  }
-  const essenceIds = Array.from(new Set(qualites.map((q) => q.essenceId)));
-
-  // récupère état actuel (pour diff)
-  const current = await prisma.chantier.findUniqueOrThrow({
-    where: { id },
-    select: {
-      qualites: { select: { qualiteId: true } },
-      assignments: { select: { userId: true } },
-      essences: { select: { essenceId: true } },
-    },
-  });
-
-  const currentQualiteIds = current.qualites.map((x) => x.qualiteId);
-  const currentUserIds = current.assignments.map((x) => x.userId);
-  const currentEssenceIds = current.essences.map((x) => x.essenceId);
-
-  const qualitesToAdd = input.qualiteIds.filter(
-    (x) => !currentQualiteIds.includes(x),
-  );
-  const qualitesToRemove = currentQualiteIds.filter(
-    (x) => !input.qualiteIds.includes(x),
-  );
-
-  const usersToAdd = input.bucheronIds.filter(
-    (x) => !currentUserIds.includes(x),
-  );
-  const usersToRemove = currentUserIds.filter(
-    (x) => !input.bucheronIds.includes(x),
-  );
-
-  const essencesToAdd = essenceIds.filter(
-    (x) => !currentEssenceIds.includes(x),
-  );
-  const essencesToRemove = currentEssenceIds.filter(
-    (x) => !essenceIds.includes(x),
-  );
-
-  await prisma.$transaction(async (tx) => {
-    // 1) champs simples
-    await tx.chantier.update({
-      where: { id },
-      data: {
-        referenceLot: input.referenceLot,
-        convention: input.convention,
-        proprietaire: input.proprietaire,
-        proprietaireFirstName: input.proprietaireFirstName,
-        commune: input.commune,
-        lieuDit: input.lieuDit,
-        section: input.section.toUpperCase(),
-        parcel: input.parcel,
-      },
+  try {
+    // Vérifier que le chantier existe
+    const existingChantier = await prisma.chantier.findUnique({
+      where: { id: chantierId }
     });
 
-    // 2) sync QualiteOnChantier
-    if (qualitesToRemove.length) {
-      await tx.qualiteOnChantier.deleteMany({
-        where: { chantierId: id, qualiteId: { in: qualitesToRemove } },
-      });
-    }
-    if (qualitesToAdd.length) {
-      await tx.qualiteOnChantier.createMany({
-        data: qualitesToAdd.map((qid) => ({ chantierId: id, qualiteId: qid })),
-        skipDuplicates: true,
-      });
+    if (!existingChantier) {
+      throw new Error("Chantier introuvable");
     }
 
-    // 3) sync Assignments
-    if (usersToRemove.length) {
-      await tx.assignment.deleteMany({
-        where: { chantierId: id, userId: { in: usersToRemove } },
-      });
-    }
-    if (usersToAdd.length) {
-      await tx.assignment.createMany({
-        data: usersToAdd.map((uid) => ({ chantierId: id, userId: uid })),
-        skipDuplicates: true,
-      });
-    }
+    // Préparer les données de mise à jour
+    const updateData: any = {};
+    
+    if (input.numeroCoupe !== undefined) updateData.numeroCoupe = input.numeroCoupe;
+    if (input.clientId !== undefined) updateData.clientId = input.clientId;
+    if (input.propertyId !== undefined) updateData.propertyId = input.propertyId;
 
-    // 4) sync EssenceOnChantier (dérivé des qualités)
-    if (essencesToRemove.length) {
-      await tx.essenceOnChantier.deleteMany({
-        where: { chantierId: id, essenceId: { in: essencesToRemove } },
-      });
-    }
-    if (essencesToAdd.length) {
-      await tx.essenceOnChantier.createMany({
-        data: essencesToAdd.map((eid) => ({ chantierId: id, essenceId: eid })),
-        skipDuplicates: true,
-      });
-    }
-  });
-
-  // renvoie le détail à jour (même format que getChantierByIdService)
-  return getChantierByIdService({ userId: user.userId, role: user.role }, id);
-}
-
-/**
- * Liste des chantiers (filtrée par date de création + rôle/assignment)
- */
-export async function listChantiersService(user: {
-  userId: string;
-  role: "BUCHERON" | "SUPERVISEUR";
-}) {
-  const where =
-    user.role === "SUPERVISEUR"
-      ? {}
-      : { assignments: { some: { userId: user.userId } } };
-
-  const rows = await prisma.chantier.findMany({
-    where,
-    orderBy: [{ createdAt: "desc" }, { referenceLot: "asc" }],
-    select: {
-      id: true,
-      referenceLot: true,
-      convention: true,
-      proprietaire: true,
-      proprietaireFirstName: true,
-      commune: true,
-      lieuDit: true,
-      section: true,
-      parcel: true,
-      createdAt: true,
-      essences: { select: { essence: { select: { id: true, name: true } } } },
-      qualites: {
-        select: {
-          qualite: {
-            select: { id: true, name: true, essence: { select: { id: true } } },
-          },
+    // Mettre à jour le chantier
+    const updatedChantier = await prisma.chantier.update({
+      where: { id: chantierId },
+      data: updateData,
+      include: {
+        client: {
+          select: {
+            id: true,
+            firstName: true,
+            lastName: true,
+            email: true,
+            phone: true,
+            street: true,
+            postalCode: true,
+            city: true,
+            createdAt: true,
+          }
         },
-      },
-      assignments: {
-        select: {
-          user: {
-            select: { id: true, firstName: true, lastName: true, role: true },
-          },
+        qualityGroups: {
+          include: {
+            qualityGroup: {
+              include: {
+                qualite: true,
+                scieur: true,
+                essences: {
+                  include: {
+                    essence: true
+                  }
+                },
+                lotConventions: true
+              }
+            }
+          }
         },
-      },
-    },
-  });
+        assignments: {
+          include: {
+            user: true
+          }
+        },
+        debardeurAssignments: {
+          include: {
+            user: true
+          }
+        },
+        property: true
+      }
+    });
 
-  return rows.map((r) => ({
-    id: r.id,
-    referenceLot: r.referenceLot,
-    convention: r.convention,
-    proprietaire: r.proprietaire,
-    proprietaireFirstName: r.proprietaireFirstName,
-    commune: r.commune,
-    lieuDit: r.lieuDit,
-    section: r.section,
-    parcel: r.parcel,
-    createdAt: r.createdAt,
-    essences: r.essences.map((e) => e.essence),
-    qualites: r.qualites.map((q) => q.qualite),
-    bucherons: r.assignments
-      .map((a) => a.user)
-      .filter((u) => u.role === "BUCHERON")
-      .map((u) => ({ id: u.id, firstName: u.firstName, lastName: u.lastName })),
-  }));
-}
+    // Mettre à jour les groupes de qualité si fournis
+    if (input.qualityGroupIds) {
+      // Supprimer les anciennes relations
+      await prisma.chantierQualityGroup.deleteMany({
+        where: { chantierId }
+      });
 
-/**
- * Détail d'un chantier (contrôle d'accès par rôle/assignment)
- */
-export async function getChantierByIdService(
-  user: { userId: string; role: "BUCHERON" | "SUPERVISEUR" },
-  id: string,
-) {
-  const where =
-    user.role === "SUPERVISEUR"
-      ? { id }
-      : { id, assignments: { some: { userId: user.userId } } };
+      // Créer les nouvelles relations
+      await prisma.chantierQualityGroup.createMany({
+        data: input.qualityGroupIds.map(qualityGroupId => ({
+          chantierId,
+          qualityGroupId
+        }))
+      });
+    }
 
-  const r = await prisma.chantier.findFirst({
-    where,
-    select: {
-      id: true,
-      referenceLot: true,
-      convention: true,
-      proprietaire: true,
-      proprietaireFirstName: true,
-      commune: true,
-      lieuDit: true,
-      section: true,
-      parcel: true,
-      createdAt: true,
-      essences: { select: { essence: { select: { id: true, name: true } } } },
-      qualites: {
-        select: {
-          qualite: {
-            select: {
-              id: true,
-              name: true,
-              pourcentageEcorce: true,
-              essence: { select: { id: true, name: true } },
+    // Mettre à jour les bûcherons si fournis
+    if (input.bucheronIds) {
+      // Supprimer les anciennes assignations
+      await prisma.assignment.deleteMany({
+        where: { chantierId }
+      });
+
+      // Créer les nouvelles assignations
+      await prisma.assignment.createMany({
+        data: input.bucheronIds.map(bucheronId => ({
+          chantierId,
+          userId: bucheronId
+        }))
+      });
+    }
+
+    // Mettre à jour les débardeurs si fournis
+    if (input.debardeurIds) {
+      // Supprimer les anciennes assignations de débardeurs
+      await prisma.debardeurAssignment.deleteMany({
+        where: { chantierId }
+      });
+
+      // Créer les nouvelles assignations de débardeurs
+      await prisma.debardeurAssignment.createMany({
+        data: input.debardeurIds.map(debardeurId => ({
+          chantierId,
+          userId: debardeurId
+        }))
+      });
+    }
+
+    // Mettre à jour les lots/conventions si fournis
+    if (input.lotConventions && input.lotConventions.length > 0) {
+      for (const lotConv of input.lotConventions) {
+        if (lotConv.lot || lotConv.convention) {
+          // Chercher ou créer le lot/convention
+          const lotConvention = await prisma.lotConvention.upsert({
+            where: {
+              qualityGroupId: lotConv.qualityGroupId
             },
-          },
-        },
-      },
-      assignments: {
-        select: {
-          user: {
-            select: { id: true, firstName: true, lastName: true, role: true },
-          },
-        },
-      },
-    },
-  });
+            update: {
+              lot: lotConv.lot || '',
+              convention: lotConv.convention || ''
+            },
+            create: {
+              lot: lotConv.lot || '',
+              convention: lotConv.convention || '',
+              qualityGroupId: lotConv.qualityGroupId
+            }
+          });
+        }
+      }
+    }
 
-  if (!r) return null;
+    // Récupérer le chantier mis à jour avec toutes les relations
+    const finalChantier = await prisma.chantier.findUnique({
+      where: { id: chantierId },
+      include: {
+        client: {
+          select: {
+            id: true,
+            firstName: true,
+            lastName: true,
+            email: true,
+            phone: true,
+            street: true,
+            postalCode: true,
+            city: true,
+            createdAt: true,
+          }
+        },
+        qualityGroups: {
+          include: {
+            qualityGroup: {
+              include: {
+                qualite: true,
+                scieur: true,
+                essences: {
+                  include: {
+                    essence: true
+                  }
+                },
+                lotConventions: true
+              }
+            }
+          }
+        },
+        assignments: {
+          include: {
+            user: true
+          }
+        },
+        debardeurAssignments: {
+          include: {
+            user: true
+          }
+        },
+        property: true
+      }
+    });
 
-  return {
-    id: r.id,
-    referenceLot: r.referenceLot,
-    convention: r.convention,
-    proprietaire: r.proprietaire,
-    proprietaireFirstName: r.proprietaireFirstName,
-    commune: r.commune,
-    lieuDit: r.lieuDit,
-    section: r.section,
-    parcel: r.parcel,
-    createdAt: r.createdAt,  
-    essences: r.essences.map((e) => e.essence),
-    qualites: r.qualites.map((q) => q.qualite),
-    bucherons: r.assignments
-      .map((a) => a.user)
-      .filter((u) => u.role === "BUCHERON"),
-  };
+    if (!finalChantier) {
+      throw new Error("Erreur lors de la récupération du chantier mis à jour");
+    }
+
+    return {
+      id: finalChantier.id,
+      numeroCoupe: finalChantier.numeroCoupe,
+      section: finalChantier.section,
+      parcel: finalChantier.parcel,
+      createdAt: finalChantier.createdAt,
+      client: finalChantier.client ? {
+        id: finalChantier.client.id,
+        firstName: finalChantier.client.firstName,
+        lastName: finalChantier.client.lastName,
+        email: finalChantier.client.email,
+        phone: finalChantier.client.phone,
+        street: finalChantier.client.street,
+        postalCode: finalChantier.client.postalCode,
+        city: finalChantier.client.city
+      } : null,
+      property: finalChantier.property ? {
+        id: finalChantier.property.id,
+        commune: finalChantier.property.commune,
+        lieuDit: finalChantier.property.lieuDit,
+        section: finalChantier.property.section,
+        parcelle: finalChantier.property.parcelle,
+        surfaceCadastrale: finalChantier.property.surfaceCadastrale
+      } : null,
+      qualityGroups: finalChantier.qualityGroups.map(cqg => ({
+        id: cqg.qualityGroup.id,
+        name: cqg.qualityGroup.name,
+        category: cqg.qualityGroup.category,
+        pourcentageEcorce: cqg.qualityGroup.pourcentageEcorce,
+        qualite: {
+          id: cqg.qualityGroup.qualite.id,
+          name: cqg.qualityGroup.qualite.name
+        },
+        scieur: {
+          id: cqg.qualityGroup.scieur.id,
+          name: cqg.qualityGroup.scieur.name
+        },
+        essences: cqg.qualityGroup.essences.map(e => ({
+          id: e.essence.id,
+          name: e.essence.name
+        })),
+        lotConventions: cqg.qualityGroup.lotConventions ? [{
+          id: cqg.qualityGroup.lotConventions.id,
+          lot: cqg.qualityGroup.lotConventions.lot,
+          convention: cqg.qualityGroup.lotConventions.convention,
+          qualityGroupId: cqg.qualityGroup.lotConventions.qualityGroupId
+        }] : []
+      })),
+      bucherons: finalChantier.assignments.map(a => ({
+        id: a.user.id,
+        firstName: a.user.firstName,
+        lastName: a.user.lastName
+      })),
+      debardeurAssignments: finalChantier.debardeurAssignments.map(a => ({
+        id: a.user.id,
+        firstName: a.user.firstName,
+        lastName: a.user.lastName
+      }))
+    };
+  } catch (error) {
+    console.error('Error in updateChantierService:', error);
+    throw error;
+  }
 }
 
 export async function deleteChantierService(
   user: {
     userId: string;
-    role: "BUCHERON" | "SUPERVISEUR";
+    roles: ("BUCHERON" | "SUPERVISEUR" | "DEBARDEUR")[];
   },
   chantierId: string,
 ) {
-  if (user.role !== "SUPERVISEUR") {
-    throw new Error("Accès refusé");
+  try {
+    // Vérifier que le chantier existe
+    const chantier = await prisma.chantier.findUnique({
+      where: { id: chantierId }
+    });
+
+    if (!chantier) {
+      throw new Error("Chantier introuvable");
+    }
+
+    // Supprimer toutes les données liées au chantier dans l'ordre correct
+    // 1. Supprimer les saisies
+    await prisma.saisie.deleteMany({
+      where: { chantierId }
+    });
+
+    // 2. Supprimer les assignations (bûcherons)
+    await prisma.assignment.deleteMany({
+      where: { chantierId }
+    });
+
+    // 3. Supprimer les relations quality groups
+    await prisma.chantierQualityGroup.deleteMany({
+      where: { chantierId }
+    });
+
+    // 4. Les états de numérotation seront supprimés automatiquement
+    // car ils sont liés aux saisies qui sont déjà supprimées
+
+    // 5. Enfin, supprimer le chantier lui-même
+    await prisma.chantier.delete({
+      where: { id: chantierId }
+    });
+
+    return true;
+  } catch (error) {
+    console.error('Error in deleteChantierService:', error);
+    throw error;
   }
-
-  // Vérifier l'existence (on peut aussi ignorer et deleteMany, mais c'est plus clair)
-  const exists = await prisma.chantier.findUnique({
-    where: { id: chantierId },
-    select: { id: true },
-  });
-  if (!exists) {
-    throw new Error("Chantier introuvable");
-  }
-
-  // Supprimer proprement les dépendances (ordre important si pas de CASCADE en DB)
-  await prisma.$transaction(async (tx) => {
-    // 1) Lignes de saisie
-    await tx.saisie.deleteMany({ where: { chantierId } });
-
-    // 2) États de numérotation
-    await tx.numberingState.deleteMany({ where: { chantierId } });
-
-    // 3) Assignations bûcherons
-    await tx.assignment.deleteMany({ where: { chantierId } });
-
-    // 4) Jonctions Qualité↔Chantier
-    await tx.qualiteOnChantier.deleteMany({ where: { chantierId } });
-
-    // 5) Jonctions Essence↔Chantier
-    await tx.essenceOnChantier.deleteMany({ where: { chantierId } });
-
-    // 6) Le chantier lui-même
-    await tx.chantier.delete({ where: { id: chantierId } });
-  });
-
-  return { ok: true };
 }

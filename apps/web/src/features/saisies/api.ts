@@ -11,17 +11,18 @@ import type { SaisieRow, SaisieStats } from "./types";
 
 export type { SaisieRow } from "./types";
 
-export function listSaisies(chantierId: string, qualiteId: string) {
-  return listSaisiesOffline(chantierId, qualiteId);
+export function listSaisies(chantierId: string, qualityGroupId: string) {
+  return listSaisiesOffline(chantierId, qualityGroupId);
 }
 
 export function createSaisie(payload: {
   chantierId: string;
-  qualiteId: string;
+  qualityGroupId: string;
   longueur: number;
   diametre: number;
   annotation?: string | null;
   numero?: number;
+  debardeurId?: string;
 }) {
   return createSaisieOffline(payload);
 }
@@ -45,36 +46,36 @@ export function updateSaisie(
 export function updateSaisieWithContext(
   id: string,
   chantierId: string,
-  qualiteId: string,
-  payload: { longueur: number; diametre: number; annotation?: string | null; numero?: number },
+  qualityGroupId: string,
+  payload: { longueur: number; diametre: number; annotation?: string | null; numero?: number; debardeurId?: string },
 ) {
-  return updateSaisieOffline(id, chantierId, qualiteId, payload);
+  return updateSaisieOffline(id, chantierId, qualityGroupId, payload);
 }
 
 export function deleteSaisie(
   id: string,
   chantierId: string,
-  qualiteId: string,
+  qualityGroupId: string,
 ) {
-  return deleteSaisieOffline(id, chantierId, qualiteId);
+  return deleteSaisieOffline(id, chantierId, qualityGroupId);
 }
 
 export type { SaisieStats } from "./types";
 
 export async function getSaisiesStats(
   chantierId: string,
-  qualiteId: string,
+  qualityGroupId: string,
   ecorcePercent?: number,
   global?: boolean,
 ) {
   if (typeof navigator !== "undefined" && !navigator.onLine) {
-    return await getSaisiesStatsOffline(chantierId, qualiteId, ecorcePercent);
+    return await getSaisiesStatsOffline(chantierId, qualityGroupId, ecorcePercent);
   }
   try {
-    return await httpGetSaisiesStats(chantierId, qualiteId, global);
+    return await httpGetSaisiesStats(chantierId, qualityGroupId, global);
   } catch {
     // offline fallback from cache
-    return await getSaisiesStatsOffline(chantierId, qualiteId, ecorcePercent);
+    return await getSaisiesStatsOffline(chantierId, qualityGroupId, ecorcePercent);
   }
 }
 

@@ -8,13 +8,13 @@ type PendingOp =
 interface CubageDB extends DBSchema {
   // Cached saisies per chantier/qualité
   saisies: {
-    key: string; // `${chantierId}:${qualiteId}:${saisieId}`
+    key: string; // `${chantierId}:${qualityGroupId}:${saisieId}`
     value: any;
     indexes: { byCQ: string; byId: string };
   };
   // Per (chantier,qualite) list snapshot
   saisiesIndex: {
-    key: string; // `${chantierId}:${qualiteId}`
+    key: string; // `${chantierId}:${qualityGroupId}`
     value: { ids: string[]; updatedAt: number };
   };
   // Pending mutations to replay online
@@ -23,7 +23,7 @@ interface CubageDB extends DBSchema {
     value: {
       id?: number;
       chantierId: string;
-      qualiteId: string;
+      qualityGroupId: string;
       cq: string;
       op: PendingOp;
       createdAt: number;
@@ -92,15 +92,15 @@ export function getDB() {
 
 export async function cacheSaisiesList(
   chantierId: string,
-  qualiteId: string,
+  qualityGroupId: string,
   rows: any[],
 ) {
   const db = await getDB();
   const tx = db.transaction(["saisies", "saisiesIndex"], "readwrite");
-  const indexKey = `${chantierId}:${qualiteId}`;
+  const indexKey = `${chantierId}:${qualityGroupId}`;
   const ids: string[] = [];
   for (const r of rows) {
-    const key = `${chantierId}:${qualiteId}:${r.id}`;
+    const key = `${chantierId}:${qualityGroupId}:${r.id}`;
     ids.push(r.id);
     await tx.db.put(
       "saisies",
@@ -112,6 +112,10 @@ export async function cacheSaisiesList(
         user: r.user && r.user.id
           ? { id: r.user.id, firstName: r.user.firstName, lastName: r.user.lastName }
           : r.user || null,
+        // Ensure debardeur object is present for offline UI display
+        debardeur: r.debardeur && r.debardeur.id
+          ? { id: r.debardeur.id, firstName: r.debardeur.firstName, lastName: r.debardeur.lastName }
+          : r.debardeur || null,
       },
       key,
     );
@@ -122,11 +126,11 @@ export async function cacheSaisiesList(
 
 export async function upsertCachedSaisie(
   chantierId: string,
-  qualiteId: string,
+  qualityGroupId: string,
   row: any,
 ) {
   const db = await getDB();
-  const indexKey = `${chantierId}:${qualiteId}`;
+  const indexKey = `${chantierId}:${qualityGroupId}`;
   const key = `${indexKey}:${row.id}`;
   const tx = db.transaction(["saisies", "saisiesIndex"], "readwrite");
   await tx.db.put("saisies", { ...row, cq: indexKey }, key);
@@ -145,11 +149,11 @@ export async function upsertCachedSaisie(
 
 export async function removeCachedSaisie(
   chantierId: string,
-  qualiteId: string,
+  qualityGroupId: string,
   id: string,
 ) {
   const db = await getDB();
-  const indexKey = `${chantierId}:${qualiteId}`;
+  const indexKey = `${chantierId}:${qualityGroupId}`;
   const key = `${indexKey}:${id}`;
   const tx = db.transaction(["saisies", "saisiesIndex"], "readwrite");
   await tx.db.delete("saisies", key);
@@ -171,17 +175,17 @@ export async function removeCachedSaisie(
 
 export async function readCachedSaisiesList(
   chantierId: string,
-  qualiteId: string,
+  qualityGroupId: string,
 ) {
   const db = await getDB();
-  const indexKey = `${chantierId}:${qualiteId}`;
+  const indexKey = `${chantierId}:${qualityGroupId}`;
   const meta = await db.get("saisiesIndex", indexKey);
   if (!meta) return null;
   const rows: any[] = [];
   for (const id of meta.ids) {
     const row = await db.get(
       "saisies",
-      `${chantierId}:${qualiteId}:${id}`,
+      `${chantierId}:${qualityGroupId}:${id}`,
     );
     if (row) rows.push(row);
   }
@@ -190,14 +194,14 @@ export async function readCachedSaisiesList(
 
 export async function enqueueSaisieOp(
   chantierId: string,
-  qualiteId: string,
+  qualityGroupId: string,
   op: PendingOp,
 ) {
   const db = await getDB();
-  const cq = `${chantierId}:${qualiteId}`;
+  const cq = `${chantierId}:${qualityGroupId}`;
   await db.add("saisiesQueue", {
     chantierId,
-    qualiteId,
+    qualityGroupId,
     cq,
     op,
     createdAt: Date.now(),
@@ -225,11 +229,11 @@ export async function updateQueueItem(item: any) {
 
 export async function readCachedSaisie(
   chantierId: string,
-  qualiteId: string,
+  qualityGroupId: string,
   id: string,
 ) {
   const db = await getDB();
-  const key = `${chantierId}:${qualiteId}:${id}`;
+  const key = `${chantierId}:${qualityGroupId}:${id}`;
   return db.get("saisies", key);
 }
 

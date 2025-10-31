@@ -9,14 +9,14 @@ import {
   type Role,
 } from "./users.service";
 
-const RoleEnum = z.enum(["BUCHERON", "SUPERVISEUR"]);
+const RoleEnum = z.enum(["BUCHERON", "SUPERVISEUR", "DEBARDEUR"]);
 const nameRegex = /^[A-Za-zÀ-ÖØ-öø-ÿ' -]{2,}$/;
 const phoneRegex = /^[0-9+().\s-]{6,20}$/;
 
 const CreateSchema = z.object({
   firstName: z.string().regex(nameRegex),
   lastName: z.string().regex(nameRegex),
-  role: RoleEnum,
+  roles: z.array(RoleEnum).min(1, "Au moins un rôle requis"),
   email: z.string().email(),
   phone: z.string().regex(phoneRegex),
   numStart: z.number().int().nonnegative(),
@@ -28,7 +28,7 @@ const CreateSchema = z.object({
 const UpdateSchema = z.object({
   firstName: z.string().regex(nameRegex),
   lastName: z.string().regex(nameRegex),
-  role: RoleEnum,
+  roles: z.array(RoleEnum).min(1, "Au moins un rôle requis"),
   phone: z.string().regex(phoneRegex),
   numStart: z.number().int().nonnegative(),
   numEnd: z.number().int().nonnegative(),
@@ -38,13 +38,13 @@ const UpdateSchema = z.object({
 function requireSupervisor(
   req: Request,
   res: Response,
-): { ok: boolean; role?: Role } {
-  const u = (req as any).user as { role: Role } | undefined;
-  if (!u || u.role !== "SUPERVISEUR") {
+): { ok: boolean; roles?: Role[] } {
+  const u = (req as any).user as { roles: Role[] } | undefined;
+  if (!u || !u.roles.includes("SUPERVISEUR")) {
     res.status(403).json({ error: "Accès refusé" });
     return { ok: false };
   }
-  return { ok: true, role: u.role };
+  return { ok: true, roles: u.roles };
 }
 
 /** GET /users (plus de filtre par rôle) */
@@ -53,7 +53,7 @@ export async function getUsers(req: Request, res: Response) {
   if (!gate.ok) return;
   try {
     const roleParam = (req.query.role as string | undefined)?.toUpperCase();
-    const role = roleParam === "BUCHERON" || roleParam === "SUPERVISEUR" ? (roleParam as Role) : undefined;
+    const role = roleParam === "BUCHERON" || roleParam === "SUPERVISEUR" || roleParam === "DEBARDEUR" ? (roleParam as Role) : undefined;
     const users = await getUsersService(role);
     res.json(users);
   } catch (e: any) {

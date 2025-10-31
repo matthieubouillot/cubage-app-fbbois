@@ -10,15 +10,15 @@ export function RoleRoute({
   allow,
   children,
 }: {
-  allow: Array<"BUCHERON" | "SUPERVISEUR">;
+  allow: Array<"BUCHERON" | "SUPERVISEUR" | "DEBARDEUR">;
   children?: React.ReactNode;
 }) {
   const user = getUser();
   if (!user) return <Navigate to="/login" replace />;
 
-  if (!allow.includes(user.role)) {
-    const fallback = user.role === "SUPERVISEUR" ? "/home" : "/chantiers";
-    return <Navigate to={fallback} replace />; 
+  if (!user.roles.some(role => allow.includes(role))) {
+    const fallback = user.roles.includes("SUPERVISEUR") ? "/home" : "/chantiers";
+    return <Navigate to={fallback} replace />;
   }
   return children ? <>{children}</> : <Outlet />;
 }

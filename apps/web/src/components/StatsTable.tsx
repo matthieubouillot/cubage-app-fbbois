@@ -41,17 +41,17 @@ export default function StatsTable({
 
           <thead className="bg-gray-50">
             <tr className="text-center">
-              <th className="px-3 py-2 border-b border-gray-200 text-gray-600 font-medium"></th>
-              <th className="px-3 py-2 border-b border-gray-200 text-gray-600 font-medium">
+              <th className="px-3 py-2 border-b border-gray-200 text-black font-medium"></th>
+              <th className="px-3 py-2 border-b border-gray-200 text-black font-medium">
                 vol. &lt; V1
               </th>
-              <th className="px-3 py-2 border-b border-gray-200 text-gray-600 font-medium">
+              <th className="px-3 py-2 border-b border-gray-200 text-black font-medium">
                 V1 ≤ vol. &lt; V2
               </th>
-              <th className="px-3 py-2 border-b border-gray-200 text-gray-600 font-medium">
+              <th className="px-3 py-2 border-b border-gray-200 text-black font-medium">
                 vol. ≥ V2
               </th>
-              <th className="px-3 py-2 border-b border-gray-200 text-gray-600 font-medium">
+              <th className="px-3 py-2 border-b border-gray-200 text-black font-medium">
                 Total
               </th>
             </tr>

@@ -5,7 +5,7 @@ export default function Home() {
   const u = getUser();
 
   // Protection : seuls les superviseurs voient Home
-  if (!u || u.role !== "SUPERVISEUR") {
+  if (!u || !u.roles.includes("SUPERVISEUR")) {
     return <Navigate to="/chantiers" replace />;
   }
 
@@ -24,7 +24,7 @@ export default function Home() {
             </p>
           </div>
 
-          <div className="pt-2 flex items-center justify-center gap-3">
+          <div className="pt-2 flex items-center justify-center gap-3 flex-wrap">
             <Link
               to="/chantiers"
               className="inline-flex items-center justify-center rounded-full bg-black text-white px-5 py-2 text-sm"
@@ -36,6 +36,12 @@ export default function Home() {
               className="inline-flex items-center justify-center rounded-full border border-gray-300 px-5 py-2 text-sm hover:bg-gray-50"
             >
               Utilisateurs
+            </Link>
+            <Link
+              to="/clients" 
+              className="inline-flex items-center justify-center rounded-full border border-gray-300 px-5 py-2 text-sm hover:bg-gray-50"
+            >
+              Clients
             </Link>
           </div>
         </div>

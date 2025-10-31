@@ -12,6 +12,7 @@ import ChantierDetail from "./pages/chantiers/ChantierDetail";
 import ForgotPassword from "./pages/auth/ForgotPassword";
 import ResetPassword from "./pages/auth/ResetPassword";
 import UsersPage from "./pages/users/UsersPage";
+import ClientsPage from "./pages/clients/ClientsPage";
 import { getUser, isAuthenticated } from "./features/auth/auth";
 import { syncOfflineQueueNow } from "./features/saisies/api";
 import { syncChantiersOfflineNow } from "./features/chantiers/api";
@@ -56,6 +57,7 @@ export default function App() {
             <Route path="/chantiers/nouveau" element={<CreateChantier />} />
             <Route path="/chantiers/:id/modifier" element={<EditChantier />} />
             <Route path="/utilisateurs" element={<UsersPage />} />
+            <Route path="/clients" element={<ClientsPage />} />
           </Route>
 
           {/* Bloc commun SUPERVISEUR + BUCHERON */}
@@ -73,7 +75,7 @@ export default function App() {
           path="/"
           element={
             isAuthenticated() ? (
-              getUser()?.role === "SUPERVISEUR" ? (
+              getUser()?.roles.includes("SUPERVISEUR") ? (
                 navigator.onLine ? <Navigate to="/home" replace /> : <Navigate to="/chantiers" replace />
               ) : (
                 <Navigate to="/chantiers" replace />

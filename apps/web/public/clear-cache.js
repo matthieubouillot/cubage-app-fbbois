@@ -6,7 +6,6 @@ if ('caches' in window) {
   caches.keys().then(names => {
     names.forEach(name => {
       caches.delete(name);
-      console.log('Cache supprimé:', name);
     });
   });
 }
@@ -16,14 +15,11 @@ if ('serviceWorker' in navigator) {
   navigator.serviceWorker.getRegistrations().then(registrations => {
     registrations.forEach(registration => {
       registration.unregister();
-      console.log('Service Worker désinscrit');
     });
   });
 }
 
 // Vider le localStorage
 localStorage.clear();
-console.log('localStorage vidé');
 
-console.log('Cache vidé ! Rechargez la page.');
 

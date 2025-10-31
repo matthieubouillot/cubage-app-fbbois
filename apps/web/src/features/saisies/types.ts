@@ -10,6 +10,7 @@ export type SaisieRow = {
   volumeCalc: number;
   annotation?: string | null;
   user?: { id: string; firstName: string; lastName: string };
+  debardeur?: { id: string; firstName: string; lastName: string } | null;
 };
 
 export type SaisieStats = {

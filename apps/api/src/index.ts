@@ -4,4 +4,5 @@ import { env } from "./config/env";
 const PORT = env.PORT || 4000;
 
 app.listen(PORT, () => {
+  console.log(`🚀 API démarrée sur le port ${PORT}`);
 });

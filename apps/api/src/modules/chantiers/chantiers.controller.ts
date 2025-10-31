@@ -9,34 +9,17 @@ import {
 } from "./chantiers.service";
 
 const CreateChantierSchema = z.object({
-  referenceLot: z.string().regex(/^\d+$/, "Uniquement des chiffres").min(1),
-  convention: z.string().regex(/^\d+$/, "Uniquement des chiffres").min(1),
-  proprietaire: z
-    .string()
-    .regex(/^[A-Za-zÀ-ÖØ-öø-ÿ\s-]+$/, "Uniquement des lettres")
-    .min(1),
-  proprietaireFirstName: z
-    .string()
-    .regex(/^[A-Za-zÀ-ÖØ-öø-ÿ\s-]+$/, "Uniquement des lettres")
-    .min(1),
-  commune: z
-    .string()
-    .regex(/^[A-Za-zÀ-ÖØ-öø-ÿ\s-]+$/, "Uniquement des lettres")
-    .min(1),
-  lieuDit: z
-    .string()
-    .regex(/^[A-Za-zÀ-ÖØ-öø-ÿ\s-]+$/, "Uniquement des lettres")
-    .min(1),
-  qualiteIds: z.array(z.string().uuid()).min(1, "Choisis au moins une qualité"),
-  bucheronIds: z
-    .array(z.string().uuid())
-    .min(1, "Choisis au moins un bûcheron"),
-  section: z
-    .string()
-    .regex(/^[A-Za-z]{1,2}$/, "1 ou 2 lettres max"),
-  parcel: z
-    .string()
-    .regex(/^\d+$/, "Uniquement des chiffres"),
+  numeroCoupe: z.string().regex(/^\d+$/, "Uniquement des chiffres").min(1),
+  clientId: z.string().uuid("ID client invalide"),
+  propertyId: z.string().uuid("ID propriété invalide"),
+  qualityGroupIds: z.array(z.string().uuid()).min(1, "Choisis au moins un groupe de qualité"),
+  bucheronIds: z.array(z.string().uuid()).min(1, "Choisis au moins un bûcheron"),
+  debardeurIds: z.array(z.string().uuid()).min(1, "Choisis au moins un débardeur"),
+  lotConventions: z.array(z.object({
+    qualityGroupId: z.string().uuid(),
+    lot: z.string().regex(/^\d*$/, "Uniquement des chiffres").optional(),
+    convention: z.string().regex(/^\d*$/, "Uniquement des chiffres").optional(),
+  })).optional(),
 });
 
 export async function createChantier(req: Request, res: Response) {
@@ -59,20 +42,21 @@ export async function createChantier(req: Request, res: Response) {
 }
 
 const UpsertChantierSchema = z.object({
-  referenceLot: z.string().regex(/^\d+$/).min(1),
-  convention: z.string().regex(/^\d+$/).min(1),
-  proprietaire: z.string().regex(/^[A-Za-zÀ-ÖØ-öø-ÿ\s-]+$/).min(1),
-  proprietaireFirstName: z.string().regex(/^[A-Za-zÀ-ÖØ-öø-ÿ\s-]+$/).min(1),
-  commune: z.string().regex(/^[A-Za-zÀ-ÖØ-öø-ÿ\s-]+$/).min(1),
-  lieuDit: z.string().regex(/^[A-Za-zÀ-ÖØ-öø-ÿ\s-]+$/).min(1),
-  qualiteIds: z.array(z.string().uuid()).min(1),
-  bucheronIds: z.array(z.string().uuid()).min(1),
-  section: z.string().regex(/^[A-Za-z]{1,2}$/),
-  parcel: z.string().regex(/^\d+$/),
+  numeroCoupe: z.string().regex(/^\d+$/, "Uniquement des chiffres").min(1).optional(),
+  clientId: z.string().uuid("ID client invalide").optional(),
+  propertyId: z.string().uuid("ID propriété invalide").optional(),
+  qualityGroupIds: z.array(z.string().uuid()).min(1, "Choisis au moins un groupe de qualité").optional(),
+  bucheronIds: z.array(z.string().uuid()).min(1, "Choisis au moins un bûcheron").optional(),
+  debardeurIds: z.array(z.string().uuid()).min(1, "Choisis au moins un débardeur").optional(),
+  lotConventions: z.array(z.object({
+    qualityGroupId: z.string().uuid(),
+    lot: z.string().regex(/^\d*$/, "Uniquement des chiffres").optional(),
+    convention: z.string().regex(/^\d*$/, "Uniquement des chiffres").optional(),
+  })).optional(),
 });
 
 export async function updateChantier(req: Request, res: Response) {
-  const auth = (req as any).user as { userId: string; role: "BUCHERON" | "SUPERVISEUR" };
+  const auth = (req as any).user as { userId: string; roles: ("BUCHERON" | "SUPERVISEUR" | "DEBARDEUR")[] };
   const parse = UpsertChantierSchema.safeParse(req.body);
   if (!parse.success) {
     return res.status(400).json({ error: "Champs invalides", details: parse.error.flatten() });
@@ -91,7 +75,7 @@ export async function updateChantier(req: Request, res: Response) {
 export async function listChantiers(req: Request, res: Response) {
   const auth = (req as any).user as {
     userId: string;
-    role: "BUCHERON" | "SUPERVISEUR";
+    roles: ("BUCHERON" | "SUPERVISEUR" | "DEBARDEUR")[];
   };
   try {
     const data = await listChantiersService(auth);
@@ -106,7 +90,7 @@ export async function listChantiers(req: Request, res: Response) {
 export async function getChantierById(req: Request, res: Response) {
   const auth = (req as any).user as {
     userId: string;
-    role: "BUCHERON" | "SUPERVISEUR";
+    roles: ("BUCHERON" | "SUPERVISEUR" | "DEBARDEUR")[];
   };
   try {
     const data = await getChantierByIdService(auth, req.params.id);
@@ -122,7 +106,7 @@ export async function getChantierById(req: Request, res: Response) {
 export async function deleteChantier(req: Request, res: Response) {
   const auth = (req as any).user as {
     userId: string;
-    role: "BUCHERON" | "SUPERVISEUR";
+    roles: ("BUCHERON" | "SUPERVISEUR" | "DEBARDEUR")[];
   };
 
   try {

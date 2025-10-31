@@ -7,6 +7,8 @@ import {
   type SaisieRow,
 } from "../../features/saisies/api";
 import { twMerge } from "tailwind-merge";
+import { useDebardeurSelection } from "../../hooks/useDebardeurSelection";
+import { listUsers } from "../../features/users/api";
 
 /* ───────── helpers ───────── */
 function fmt3(v?: number | null) {
@@ -188,17 +190,40 @@ function Modal({
 /* ───────── Main ───────── */
 export default function SaisieTab({
   chantierId,
-  qualiteId,
+  qualityGroupId,
   ecorcePercent = 0,
   onMutated,
 }: {
   chantierId: string;
-  qualiteId: string;
+  qualityGroupId: string;
   ecorcePercent?: number;
   onMutated?: () => void;
 }) {
   const [rows, setRows] = useState<SaisieRow[] | null>(null);
   const [err, setErr] = useState<string | null>(null);
+  const [gpsPointsCount, setGpsPointsCount] = useState(0);
+
+  // débardeur selection
+  const { selectedDebardeur, selectDebardeur } = useDebardeurSelection();
+  const [debardeurs, setDebardeurs] = useState<Array<{id: string; firstName: string; lastName: string}>>([]);
+
+  // Charger les débardeurs au montage du composant
+  useEffect(() => {
+    const loadDebardeurs = async () => {
+      try {
+        const users = await listUsers();
+        const debardeursList = users.filter((user: any) => user.roles.includes('DEBARDEUR'));
+        setDebardeurs(debardeursList);
+      } catch (error) {
+        console.error('Erreur lors du chargement des débardeurs:', error);
+        // Réessayer après 2 secondes
+        setTimeout(() => {
+          loadDebardeurs();
+        }, 2000);
+      }
+    };
+    loadDebardeurs();
+  }, []);
 
   // modals
   const [showAdd, setShowAdd] = useState(false);
@@ -223,7 +248,7 @@ export default function SaisieTab({
   const addLongRef = useRef<HTMLInputElement>(null);
 
   async function refresh() {
-    const data = await listSaisies(chantierId, qualiteId);
+    const data = await listSaisies(chantierId, qualityGroupId);
     setRows(data);
   }
 
@@ -234,7 +259,7 @@ export default function SaisieTab({
     const onUpdated = () => refresh().catch(() => {});
     window.addEventListener("cubage:offline-updated", onUpdated as any);
     return () => window.removeEventListener("cubage:offline-updated", onUpdated as any);
-  }, [chantierId, qualiteId]);
+  }, [chantierId, qualityGroupId]);
 
   /* add */
   function openAdd() {
@@ -278,13 +303,18 @@ export default function SaisieTab({
         }
       }
 
+      if (!selectedDebardeur) {
+        throw new Error('Veuillez sélectionner un débardeur pour la journée');
+      }
+
       await createSaisie({
         chantierId,
-        qualiteId,
+        qualityGroupId,
         longueur,
         diametre,
         annotation: addForm.annotation.trim() || undefined,
         numero,
+        debardeurId: selectedDebardeur.id,
       });
       setShowAdd(false);
       setAddForm({ longueur: "", diametre: "", annotation: "", numero: "" });
@@ -342,11 +372,16 @@ export default function SaisieTab({
         }
       }
 
-      await updateSaisieWithContext(showEdit.id, chantierId, qualiteId, {
+      if (!selectedDebardeur) {
+        throw new Error('Veuillez sélectionner un débardeur pour la journée');
+      }
+
+      await updateSaisieWithContext(showEdit.id, chantierId, qualityGroupId, {
         longueur,
         diametre,
         annotation: editForm.annotation.trim() || undefined,
         numero,
+        debardeurId: selectedDebardeur.id,
       });
       setShowEdit(null);
       await refresh();
@@ -360,7 +395,7 @@ export default function SaisieTab({
   async function remove(id: string) {
     try {
       if (!window.confirm("Supprimer cette ligne ?")) return;
-      await deleteSaisie(id, chantierId, qualiteId);
+      await deleteSaisie(id, chantierId, qualityGroupId);
       await refresh();
       onMutated?.();
     } catch (e: any) {
@@ -375,31 +410,19 @@ export default function SaisieTab({
         <BtnPrimary onClick={openAdd}>Ajouter une saisie</BtnPrimary>
       </div>
 
-      {/* FAB mobile */}
-      <button
-        onClick={openAdd}
-        className={twMerge(
-          iosIconBtn,
-          "fixed bottom-6 left-1/2 -translate-x-1/2 z-40 lg:hidden h-9 w-9"
-        )}
-        aria-label="Ajouter une saisie"
-        title="Ajouter une saisie"
-      >
-        <PlusIcon className="h-4 w-4" />
-      </button>
-
       {/* tableau desktop */}
       <div className="hidden lg:block mx-auto bg-white border rounded-xl overflow-x-auto shadow-sm">
         <table className="text-sm table-fixed">
           <colgroup>
-            <col className="w-[7%]" />
+            <col className="w-[6%]" />
+            <col className="w-[10%]" />
+            <col className="w-[8%]" />
+            <col className="w-[8%]" />
             <col className="w-[12%]" />
-            <col className="w-[10%]" />
-            <col className="w-[10%]" />
-            <col className="w-[14%]" />
-            <col className="w-[14%]" />
-            <col className="w-[14%]" />
-            <col className="w-[16%]" />
+            <col className="w-[12%]" />
+            <col className="w-[12%]" />
+            <col className="w-[12%]" />
+            <col className="w-[12%]" />
             <col className="w-[5%]" />
           </colgroup>
           <thead className="bg-gray-50 sticky top-0 z-10">
@@ -411,6 +434,7 @@ export default function SaisieTab({
               <Th>vol. &lt; V1</Th>
               <Th>V1 ≤ vol. &lt; V2</Th>
               <Th>vol. ≥ V2</Th>
+              <Th>Débardeur</Th>
               <Th>Annotation</Th>
               <Th>Actions</Th>
             </tr>
@@ -447,6 +471,15 @@ export default function SaisieTab({
                     {Number(r.diametre).toLocaleString("fr-FR")}
                   </Td>
                   {renderVolCellsDesktop(r, ecorcePercent)}
+                  <Td>
+                    {r.debardeur ? (
+                      <span className="inline-flex items-center justify-center w-6 h-6 rounded-full bg-gray-800 text-white text-xs font-medium">
+                        {r.debardeur.firstName[0]}{r.debardeur.lastName[0]}
+                      </span>
+                    ) : (
+                      <span className="text-sm">—</span>
+                    )}
+                  </Td>
                   <Td className="max-w-[320px]">
                     <span
                       className="truncate inline-block w-full"
@@ -544,6 +577,19 @@ export default function SaisieTab({
         </table>
       </div>
 
+      {/* FAB mobile - toujours visible */}
+      <button
+        onClick={openAdd}
+        className={twMerge(
+          iosIconBtn,
+          "fixed bottom-6 left-1/2 -translate-x-1/2 z-30 lg:hidden h-9 w-9"
+        )}
+        aria-label="Ajouter une saisie"
+        title="Ajouter une saisie"
+      >
+        <PlusIcon className="h-4 w-4" />
+      </button>
+
       {err && <div className="text-center text-sm text-red-600">{err}</div>}
 
       {/* Modal ajouter */}
@@ -595,6 +641,27 @@ export default function SaisieTab({
               onChange={(v) => setAddForm((s) => ({ ...s, annotation: v }))}
               placeholder="Optionnel"
             />
+          </div>
+          <div className="sm:col-span-2">
+            <div className="text-xs text-gray-600 mb-1">Débardeur *</div>
+            <select
+              value={selectedDebardeur?.id || ''}
+              onChange={(e) => {
+                const debardeur = debardeurs.find(d => d.id === e.target.value);
+                if (debardeur) {
+                  selectDebardeur(debardeur);
+                }
+              }}
+              className="w-full border rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-black/20"
+              required
+            >
+              <option value="">Sélectionner un débardeur</option>
+              {debardeurs.map((debardeur) => (
+                <option key={debardeur.id} value={debardeur.id}>
+                  {debardeur.firstName} {debardeur.lastName}
+                </option>
+              ))}
+            </select>
           </div>
         </div>
       </Modal>
@@ -648,6 +715,27 @@ export default function SaisieTab({
               onChange={(v) => setEditForm((s) => ({ ...s, annotation: v }))}
               placeholder="Optionnel"
             />
+          </div>
+          <div className="sm:col-span-2">
+            <div className="text-xs text-gray-600 mb-1">Débardeur *</div>
+            <select
+              value={selectedDebardeur?.id || ''}
+              onChange={(e) => {
+                const debardeur = debardeurs.find(d => d.id === e.target.value);
+                if (debardeur) {
+                  selectDebardeur(debardeur);
+                }
+              }}
+              className="w-full border rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-black/20"
+              required
+            >
+              <option value="">Sélectionner un débardeur</option>
+              {debardeurs.map((debardeur) => (
+                <option key={debardeur.id} value={debardeur.id}>
+                  {debardeur.firstName} {debardeur.lastName}
+                </option>
+              ))}
+            </select>
           </div>
         </div>
       </Modal>
@@ -734,9 +822,16 @@ function renderVolCellMobile(r: SaisieRow, ecorcePercent: number) {
     <Td className="tabular-nums">
       <div className="flex flex-col items-center leading-tight">
         <div>{fmt3(vol)}</div>
-        {r.annotation ? (
-          <span className="mt-0.5 inline-block h-1.5 w-1.5 rounded-full bg-amber-500" />
-        ) : null}
+        <div className="flex items-center gap-1 mt-0.5">
+          {r.annotation ? (
+            <span className="inline-block h-1.5 w-1.5 rounded-full bg-amber-500" />
+          ) : null}
+          {r.debardeur ? (
+            <span className="inline-flex items-center justify-center w-5 h-5 rounded-full bg-gray-800 text-white text-[10px] font-medium">
+              {r.debardeur.firstName[0]}{r.debardeur.lastName[0]}
+            </span>
+          ) : null}
+        </div>
       </div>
     </Td>
   );

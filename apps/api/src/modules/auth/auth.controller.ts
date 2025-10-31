@@ -12,7 +12,7 @@ export async function login(req: Request, res: Response) {
   const user = await validateUser(email, password);
   if (!user) return res.status(400).json({ error: "Identifiants invalides" });
 
-  const token = signToken({ userId: user.id, role: user.role as any });
+  const token = signToken({ userId: user.id, roles: user.roles as any });
   return res.json({ token, user });
 }
 

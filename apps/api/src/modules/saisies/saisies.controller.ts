@@ -10,10 +10,11 @@ import {
 
 const CreateSchema = z.object({
   chantierId: z.string().uuid(),
-  qualiteId: z.string().uuid(),
+  qualityGroupId: z.string().uuid(),
   longueur: z.number().positive(),
   diametre: z.number().positive(),
   annotation: z.string().max(500).optional().nullable(),
+  debardeurId: z.string().uuid().optional().nullable(),
 });
 
 const UpdateSchema = z.object({
@@ -21,17 +22,18 @@ const UpdateSchema = z.object({
   diametre: z.number().positive(),
   annotation: z.string().max(500).optional().nullable(),
   numero: z.number().positive().optional(),
+  debardeurId: z.string().uuid().optional().nullable(),
 });
 
 export async function createSaisie(req: Request, res: Response) {
   try {
     const auth = (req as any).user as {
       userId: string;
-      role: "BUCHERON" | "SUPERVISEUR";
+      roles: ("BUCHERON" | "SUPERVISEUR" | "DEBARDEUR")[];
     };
     const payload = req.body as {
       chantierId: string;
-      qualiteId: string;
+      qualityGroupId: string;
       longueur: number;
       diametre: number;
       annotation?: string | null;
@@ -49,7 +51,7 @@ export async function createSaisie(req: Request, res: Response) {
 export async function updateSaisie(req: Request, res: Response) {
   const auth = (req as any).user as {
     userId: string;
-    role: "BUCHERON" | "SUPERVISEUR";
+    roles: ("BUCHERON" | "SUPERVISEUR" | "DEBARDEUR")[];
   };
   const parse = UpdateSchema.safeParse(req.body);
   if (!parse.success)
@@ -68,7 +70,7 @@ export async function updateSaisie(req: Request, res: Response) {
 export async function deleteSaisie(req: Request, res: Response) {
   const auth = (req as any).user as {
     userId: string;
-    role: "BUCHERON" | "SUPERVISEUR";
+    roles: ("BUCHERON" | "SUPERVISEUR" | "DEBARDEUR")[];
   };
   try {
     await deleteSaisieService(auth, req.params.id);
@@ -81,16 +83,16 @@ export async function deleteSaisie(req: Request, res: Response) {
 export async function listSaisies(req: Request, res: Response) {
   const auth = (req as any).user as {
     userId: string;
-    role: "BUCHERON" | "SUPERVISEUR";
+    roles: ("BUCHERON" | "SUPERVISEUR" | "DEBARDEUR")[];
   };
   const chantierId = req.query.chantierId as string;
-  const qualiteId = req.query.qualiteId as string;
+  const qualityGroupId = req.query.qualityGroupId as string;
 
-  if (!chantierId || !qualiteId)
-    return res.status(400).json({ error: "chantierId et qualiteId requis" });
+  if (!chantierId || !qualityGroupId)
+    return res.status(400).json({ error: "chantierId et qualityGroupId requis" });
 
   try {
-    const data = await listSaisiesService(auth, { chantierId, qualiteId });
+    const data = await listSaisiesService(auth, { chantierId, qualityGroupId });
     res.json(data);
   } catch (e: any) {
     res.status(400).json({ error: e.message || "Lecture impossible" });
@@ -100,15 +102,15 @@ export async function listSaisies(req: Request, res: Response) {
 export async function getSaisiesStats(req: Request, res: Response) {
   const auth = (req as any).user as {
     userId: string;
-    role: "BUCHERON" | "SUPERVISEUR";
+    roles: ("BUCHERON" | "SUPERVISEUR" | "DEBARDEUR")[];
   };
   const chantierId = req.query.chantierId as string;
-  const qualiteId = req.query.qualiteId as string;
+  const qualityGroupId = req.query.qualityGroupId as string;
   const global = req.query.global === "true";
-  if (!chantierId || !qualiteId)
-    return res.status(400).json({ error: "chantierId et qualiteId requis" });
+  if (!chantierId || !qualityGroupId)
+    return res.status(400).json({ error: "chantierId et qualityGroupId requis" });
   try {
-    const data = await getSaisiesStatsService(auth, { chantierId, qualiteId, global });
+    const data = await getSaisiesStatsService(auth, { chantierId, qualityGroupId, global });
     res.json(data);
   } catch (e: any) {
     res.status(400).json({ error: e.message || "Stats indisponibles" });

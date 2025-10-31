@@ -16,7 +16,7 @@ import MobileBack from "../../components/MobileBack";
 
 
 /* ───────── Constantes ───────── */
-const ROLES: Role[] = ["SUPERVISEUR", "BUCHERON"];
+const ROLES: Role[] = ["SUPERVISEUR", "BUCHERON", "DEBARDEUR"];
 const NAME_RE = /^[A-Za-zÀ-ÖØ-öø-ÿ' -]{2,}$/; // lettres + espace/’/-
 const PHONE_RE = /^\d{6,}$/; // chiffres uniquement (>=6)
 
@@ -91,9 +91,13 @@ export default function UsersPage() {
                 {u.lastName} {u.firstName}
               </div>
               <div className="mt-1 text-center text-xs">
-                <span className="px-2 py-0.5 rounded-full border text-[10px] uppercase">
-                  {u.role}
-                </span>
+                <div className="flex flex-wrap justify-center gap-1">
+                  {u.roles.map((role, index) => (
+                    <span key={index} className="px-2 py-0.5 rounded-full border text-[10px] uppercase">
+                      {role}
+                    </span>
+                  ))}
+                </div>
               </div>
 
               <div className="mt-3 space-y-1 text-center">
@@ -112,7 +116,7 @@ export default function UsersPage() {
                   title="Modifier"
                   aria-label="Modifier"
                 >
-                  <PencilIcon className="h-5 w-5" />
+                  <PencilIcon className="h-4 w-4" />
                 </button>
                 <MobileDeleteButton id={u.id} onDone={refresh} />
               </div>
@@ -154,9 +158,13 @@ export default function UsersPage() {
                         </div>
                       </Td>
                       <Td className="uppercase text-[11px]">
-                        <span className="px-2 py-0.5 rounded-full border">
-                          {u.role}
-                        </span>
+                        <div className="flex flex-wrap gap-1">
+                          {u.roles.map((role, index) => (
+                            <span key={index} className="px-2 py-0.5 rounded-full border">
+                              {role}
+                            </span>
+                          ))}
+                        </div>
                       </Td>
                       <Td className="text-gray-700">{u.email}</Td>
                       <Td className="text-gray-700">{u.phone}</Td>
@@ -166,14 +174,29 @@ export default function UsersPage() {
                         </span>
                       </Td>
                       <Td className="text-center">
-                        <div className="inline-flex items-center gap-2">
+                        <div className="flex items-center justify-center gap-2">
                           <button
                             onClick={() => setEditing(u)}
-                            className="px-3 py-1.5 rounded-full border border-gray-300 hover:bg-gray-50"
+                            className={iosIconBtnLight + " h-[30px] w-[30px]"}
+                            title="Modifier"
                           >
-                            Modifier
+                            <PencilIcon className="h-4 w-4" />
                           </button>
-                          <DeleteButton id={u.id} onDone={refresh} />
+                          <button
+                            onClick={async () => {
+                              if (!window.confirm("Supprimer cet utilisateur ?")) return;
+                              try {
+                                await deleteUser(u.id);
+                                await refresh();
+                              } catch (e: any) {
+                                console.error("Erreur suppression:", e);
+                              }
+                            }}
+                            className={iosIconBtnDanger + " h-[30px] w-[30px]"}
+                            title="Supprimer"
+                          >
+                            <TrashIcon className="h-4 w-4" />
+                          </button>
                         </div>
                       </Td>
                     </tr>
@@ -239,38 +262,13 @@ function Td(props: React.TdHTMLAttributes<HTMLTableCellElement>) {
 
 /* ───────── Boutons iOS (mobile) ───────── */
 const iosIconBase =
-  "inline-flex items-center justify-center rounded-full h-11 w-11 shadow-[0_8px_20px_rgba(0,0,0,0.12)] active:scale-[0.98] transition";
+  "inline-flex items-center justify-center rounded-full h-9 w-9 shadow-[0_8px_20px_rgba(0,0,0,0.12)] active:scale-[0.98] transition";
 const iosIconBtn = iosIconBase + " bg-black text-white";
 const iosIconBtnLight =
   iosIconBase + " bg-white text-gray-900 border border-gray-300";
 const iosIconBtnDanger =
   iosIconBase + " bg-white text-red-700 border border-red-500";
 
-/* ───────── Actions suppression ───────── */
-function DeleteButton({ id, onDone }: { id: string; onDone: () => void }) {
-  const [busy, setBusy] = useState(false);
-  return (
-    <button
-      disabled={busy}
-      onClick={async () => {
-        if (!window.confirm("Supprimer cet utilisateur ?")) return;
-        try {
-          setBusy(true);
-          await deleteUser(id);
-          onDone();
-        } finally {
-          setBusy(false);
-        }
-      }}
-      className={twMerge(
-        "px-3 py-1.5 rounded-full border border-red-600 text-red-700 hover:bg-red-50",
-        busy && "opacity-60 cursor-wait",
-      )}
-    >
-      {busy ? "Suppression…" : "Suppr."}
-    </button>
-  );
-}
 
 /* Version iOS (mobile) */
 function MobileDeleteButton({
@@ -298,7 +296,7 @@ function MobileDeleteButton({
       title="Supprimer"
       aria-label="Supprimer"
     >
-      <TrashIcon className="h-5 w-5" />
+      <TrashIcon className="h-4 w-4" />
     </button>
   );
 }
@@ -324,7 +322,7 @@ function UserModal(props: UserModalProps) {
 
   const [firstName, setFirst] = useState(initial?.firstName ?? "");
   const [lastName, setLast] = useState(initial?.lastName ?? "");
-  const [role, setRole] = useState<Role>(initial?.role ?? "BUCHERON");
+  const [roles, setRoles] = useState<Role[]>(initial?.roles ?? ["BUCHERON"]);
   const [email, setEmail] = useState(initial?.email ?? "");
   const [phone, setPhone] = useState(initial?.phone ?? "");
   const [numStart, setStart] = useState(
@@ -362,7 +360,7 @@ function UserModal(props: UserModalProps) {
         const payload: UpdateUserPayload = {
           firstName,
           lastName,
-          role,
+          roles,
           phone,
           numStart: nStart,
           numEnd: nEnd,
@@ -377,7 +375,7 @@ function UserModal(props: UserModalProps) {
         const payload: CreateUserPayload = {
           firstName,
           lastName,
-          role,
+          roles,
           email,
           phone,
           numStart: nStart,
@@ -452,18 +450,36 @@ function UserModal(props: UserModalProps) {
               />
             </Field>
 
-            <Field label="Rôle *">
-              <select
-                value={role}
-                onChange={(e) => setRole(e.target.value as Role)}
-                className="w-full border rounded-lg px-3 py-2"
-              >
-                {ROLES.map((r) => (
-                  <option key={r} value={r}>
-                    {r}
-                  </option>
-                ))}
-              </select>
+            <Field label="Rôles *">
+              <div className="space-y-2">
+                {ROLES.map((r) => {
+                  const checked = roles.includes(r);
+                  return (
+                    <label
+                      key={r}
+                      className={`flex items-center gap-2 rounded-lg border px-3 py-2 cursor-pointer hover:bg-gray-50 ${
+                        checked && "border-black/50 bg-gray-50"
+                      }`}
+                    >
+                      <input
+                        type="checkbox"
+                        className="accent-black h-4 w-4"
+                        checked={checked}
+                        onChange={(e) => {
+                          if (e.target.checked) {
+                            setRoles(prev => [...prev, r]);
+                          } else {
+                            setRoles(prev => prev.filter(role => role !== r));
+                          }
+                        }}
+                      />
+                      <span className="font-medium text-sm">
+                        {r}
+                      </span>
+                    </label>
+                  );
+                })}
+              </div>
             </Field>
 
             {!isEdit && (

@@ -1,12 +1,12 @@
 import { api } from "../../lib/api";
 
-export type Role = "SUPERVISEUR" | "BUCHERON";
+export type Role = "SUPERVISEUR" | "BUCHERON" | "DEBARDEUR";
 
 export type UserDTO = {
   id: string;
   firstName: string;
   lastName: string;
-  role: Role;
+  roles: Role[];
   email: string;
   phone: string;
   numStart: number;
@@ -17,7 +17,7 @@ export type UserDTO = {
 export type CreateUserPayload = {
   firstName: string;
   lastName: string;
-  role: Role;
+  roles: Role[];
   email: string;
   phone: string;
   numStart: number;
@@ -29,7 +29,7 @@ export type CreateUserPayload = {
 export type UpdateUserPayload = {
   firstName: string;
   lastName: string;
-  role: Role;
+  roles: Role[];
   phone: string;
   numStart: number;
   numEnd: number;

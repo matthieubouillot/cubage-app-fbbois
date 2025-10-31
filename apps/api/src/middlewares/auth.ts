@@ -3,8 +3,8 @@ import jwt from "jsonwebtoken";
 
 const JWT_SECRET = process.env.JWT_SECRET ?? "dev-secret";
 
-export type Role = "BUCHERON" | "SUPERVISEUR";
-export type JwtPayload = { userId: string; role: Role };
+export type Role = "BUCHERON" | "SUPERVISEUR" | "DEBARDEUR";
+export type JwtPayload = { userId: string; roles: Role[] };
 
 export function signToken(payload: JwtPayload) {
   return jwt.sign(payload, JWT_SECRET, { expiresIn: "7d" });
@@ -30,7 +30,7 @@ export function authorize(...roles: Role[]) {
   return (req: Request, res: Response, next: NextFunction) => {
     const u = (req as any).user as JwtPayload | undefined;
     if (!u) return res.status(401).json({ error: "Non authentifié" });
-    if (!roles.includes(u.role)) return res.status(403).json({ error: "Accès interdit" });
+    if (!u.roles.some(role => roles.includes(role))) return res.status(403).json({ error: "Accès interdit" });
     next();
   };
 }
