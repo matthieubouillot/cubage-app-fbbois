@@ -6,6 +6,9 @@ import {
   getChantierByIdService,
   deleteChantierService,
   updateChantierService,
+  getChantierFicheService,
+  saveChantierFicheService,
+  type ChantierFicheData,
 } from "./chantiers.service";
 
 const CreateChantierSchema = z.object({
@@ -123,6 +126,53 @@ export async function deleteChantier(req: Request, res: Response) {
     }
     return res.status(500).json({
       error: e.message || "Erreur lors de la suppression du chantier",
+    });
+  }
+}
+
+const SaveChantierFicheSchema = z.object({
+  aFacturerValues: z.record(z.string(), z.object({
+    abattage: z.string(),
+    debardage: z.string(),
+  })).default({}),
+  fraisGestionValues: z.record(z.string(), z.string()).default({}),
+  prixUHT: z.object({
+    aba: z.string(),
+    deb: z.string(),
+  }).default({ aba: "", deb: "" }),
+});
+
+export async function getChantierFiche(req: Request, res: Response) {
+  try {
+    const { id } = req.params;
+    const data = await getChantierFicheService(id);
+    if (!data) {
+      return res.status(404).json({ error: "Fiche chantier introuvable" });
+    }
+    return res.json(data);
+  } catch (e: any) {
+    return res.status(500).json({
+      error: e.message || "Erreur lors de la récupération de la fiche chantier",
+    });
+  }
+}
+
+export async function saveChantierFiche(req: Request, res: Response) {
+  const parse = SaveChantierFicheSchema.safeParse(req.body);
+  if (!parse.success) {
+    return res.status(400).json({
+      error: "Champs invalides",
+      details: parse.error.flatten(),
+    });
+  }
+
+  try {
+    const { id } = req.params;
+    const data = await saveChantierFicheService(id, parse.data);
+    return res.json(data);
+  } catch (e: any) {
+    return res.status(500).json({
+      error: e.message || "Erreur lors de la sauvegarde de la fiche chantier",
     });
   }
 }

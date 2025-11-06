@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from "react";
-import { useParams } from "react-router-dom";
-import { MapPin, Map } from "lucide-react";
+import { useParams, useNavigate, Link } from "react-router-dom";
+import { MapPin, Map, FileText } from "lucide-react";
 
 import {
   fetchChantier,
@@ -20,6 +20,7 @@ type Tab = { id: string; label: string; hint?: string };
 
 export default function ChantierDetail() {
   const { id } = useParams();
+  const navigate = useNavigate();
   const [data, setData] = useState<ChantierDetail | null>(null);
   const [err, setErr] = useState<string | null>(null);
 
@@ -820,7 +821,7 @@ export default function ChantierDetail() {
   return (
     <div className="max-w-[1200px] mx-auto px-4 lg:px-6 py-8 space-y-8 pb-[50px]">
       {/* Bouton retour mobile — juste sous la navbar */}
-      <MobileBack fallback="/chantiers" variant="fixed" />
+      <MobileBack fallback="/chantiers" variant="fixed" className="md:block" />
 
       {/* Header centré */}
       <header className="text-center space-y-1">
@@ -850,13 +851,21 @@ export default function ChantierDetail() {
         )}
       </header>
 
-      {/* Export PDF (desktop) */}
+      {/* Export PDF et Fiche chantier (desktop uniquement pour superviseurs) */}
       {(() => {
         const user = getUser();
         const isSupervisor = isSuperviseur(user);
-        return isSupervisor; // Temporairement désactiver la vérification hors ligne
+        return isSupervisor;
       })() && (     
-     <div className="hidden lg:flex justify-center mb-2.5">
+     <div className="hidden md:flex justify-center gap-2 mb-2.5">
+       <Link
+         to={`/chantiers/${id}/fiche`}
+         className="inline-flex items-center justify-center rounded-full px-2 py-2 text-sm shadow-[0_8px_20px_rgba(0,0,0,0.12)] active:scale-[0.98] transition hover:opacity-90"
+         aria-label="Voir la fiche chantier"
+         title="Voir la fiche chantier"
+       >
+         <FileText className="h-5 w-5 text-blue-600" />
+       </Link>
        <button
          onClick={onExportAllPdfs}
          className="inline-flex items-center justify-center rounded-full text-red-600 px-2 py-2 text-sm shadow-[0_8px_20px_rgba(0,0,0,0.12)] active:scale-[0.98] transition"
@@ -959,11 +968,25 @@ export default function ChantierDetail() {
                 (window as any)[buttonName]();
               }
             }}
-            className="inline-flex items-center justify-center rounded-full text-blue-600 px-2 py-2 text-sm shadow-[0_8px_20px_rgba(0,0,0,0.12)] active:scale-[0.98] transition"
+            className="inline-flex items-center justify-center rounded-full px-2 py-2 text-sm shadow-[0_8px_20px_rgba(0,0,0,0.12)] active:scale-[0.98] transition"
             aria-label="Ajouter un point GPS"
             title="Ajouter un point GPS"
           >
-            <MapPin className="h-5 w-5" />
+            {/* Icône Google Maps multicolore */}
+            <svg viewBox="0 0 24 24" className="h-5 w-5" xmlns="http://www.w3.org/2000/svg">
+              {/* Forme du marqueur (goutte inversée) */}
+              <path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7z" fill="none"/>
+              {/* Section rouge - haut gauche */}
+              <path d="M12 2L5 9L12 9L12 2Z" fill="#EA4335"/>
+              {/* Section bleue - haut droite */}
+              <path d="M12 2L19 9L12 9L12 2Z" fill="#4285F4"/>
+              {/* Section jaune - bas gauche */}
+              <path d="M5 9L12 9L12 22L5 9Z" fill="#FBBC04"/>
+              {/* Section verte - bas droite */}
+              <path d="M12 9L19 9L12 22L12 9Z" fill="#34A853"/>
+              {/* Cercle central blanc */}
+              <circle cx="12" cy="9" r="2" fill="#FFFFFF"/>
+            </svg>
           </button>
           {hasGpsPoints && (
             <button

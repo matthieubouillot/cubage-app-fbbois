@@ -44,7 +44,7 @@ export default function ClientsPage() {
     <div className="px-4 py-4 sm:py-6">
       <div className="max-w-7xl mx-auto space-y-6">
         {/* Barre retour mobile — flottant, toujours visible */}
-        <MobileBack fallback="/home" variant="fixed" />
+        <MobileBack fallback="/home" variant="fixed" className="md:block" />
 
         {/* Header */}
         <header className="text-center space-y-2">

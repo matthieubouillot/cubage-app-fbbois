@@ -9,6 +9,7 @@ import { ProtectedRoute, RoleRoute } from "./features/auth/ProtectedRoute";
 import CreateChantier from "./pages/chantiers/CreateChantier";
 import EditChantier from "./pages/chantiers/EditChantier";
 import ChantierDetail from "./pages/chantiers/ChantierDetail";
+import ChantierFiche from "./pages/chantiers/ChantierFiche";
 import ForgotPassword from "./pages/auth/ForgotPassword";
 import ResetPassword from "./pages/auth/ResetPassword";
 import UsersPage from "./pages/users/UsersPage";
@@ -63,6 +64,7 @@ export default function App() {
           {/* Bloc commun SUPERVISEUR + BUCHERON */}
           <Route element={<RoleRoute allow={["SUPERVISEUR", "BUCHERON"]} />}>
             <Route path="/chantiers" element={<ChantiersList />} />
+            <Route path="/chantiers/:id/fiche" element={<ChantierFiche />} />
             <Route path="/chantiers/:id" element={<ChantierDetail />} />
           </Route>
         </Route>

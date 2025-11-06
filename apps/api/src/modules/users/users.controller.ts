@@ -22,6 +22,8 @@ const CreateSchema = z.object({
   numStart: z.number().int().nonnegative(),
   numEnd: z.number().int().nonnegative(),
   password: z.string().min(6), // obligatoire
+  companyId: z.string().uuid().nullable().optional(),
+  companyName: z.string().min(1).optional(),
 });
 
 // Pour édition, tout est requis (email exclu)
@@ -32,6 +34,8 @@ const UpdateSchema = z.object({
   phone: z.string().regex(phoneRegex),
   numStart: z.number().int().nonnegative(),
   numEnd: z.number().int().nonnegative(),
+  companyId: z.string().uuid().nullable().optional(),
+  companyName: z.string().min(1).optional(),
 });
 
 /** Helper autorisation SUPERVISEUR */

@@ -13,6 +13,7 @@ import lotConventionRoutes from "./modules/lot-conventions/lot-conventions.route
 import chantierRoutes from "./modules/chantiers/chantiers.routes";
 import saisieRoutes from "./modules/saisies/saisies.routes";
 import gpsPointRoutes from "./modules/gps-points/gps-points.routes";
+import entrepriseRoutes from "./modules/entreprises/entreprises.routes";
 
 const app = express();
 
@@ -47,6 +48,7 @@ app.use("/lot-conventions", lotConventionRoutes);
 app.use("/chantiers", chantierRoutes);
 app.use("/saisies", saisieRoutes);
 app.use("/gps-points", gpsPointRoutes);
+app.use("/entreprises", entrepriseRoutes);
 
 app.use(errorHandler);
 export default app;

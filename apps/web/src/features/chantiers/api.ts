@@ -199,3 +199,30 @@ export async function getChantiers() {
   const res = await api("/chantiers");
   return res;
 }
+
+export type ChantierFicheData = {
+  aFacturerValues: Record<string, { abattage: string; debardage: string }>;
+  fraisGestionValues: Record<string, string>; // Les clés sont des strings dans l'API
+  prixUHT: { aba: string; deb: string };
+};
+
+export async function getChantierFiche(chantierId: string): Promise<ChantierFicheData | null> {
+  try {
+    const res = await api(`/chantiers/${chantierId}/fiche`);
+    return res;
+  } catch (e: any) {
+    // 404 est normal si la fiche n'existe pas encore
+    if (e.message?.includes("404") || e.message?.includes("introuvable") || e.message?.includes("Not Found")) {
+      return null;
+    }
+    throw e;
+  }
+}
+
+export async function saveChantierFiche(chantierId: string, data: ChantierFicheData): Promise<ChantierFicheData> {
+  const res = await api(`/chantiers/${chantierId}/fiche`, {
+    method: "PUT",
+    body: JSON.stringify(data),
+  });
+  return res;
+}

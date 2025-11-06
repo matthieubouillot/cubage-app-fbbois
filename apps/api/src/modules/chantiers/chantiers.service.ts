@@ -1,5 +1,11 @@
 import { prisma } from "../../prisma";
 
+export type ChantierFicheData = {
+  aFacturerValues: Record<string, { abattage: string; debardage: string }>;
+  fraisGestionValues: Record<number, string>;
+  prixUHT: { aba: string; deb: string };
+};
+
 export async function listChantiersService(user: {
   userId: string;
   roles: ("BUCHERON" | "SUPERVISEUR" | "DEBARDEUR")[];
@@ -733,6 +739,58 @@ export async function deleteChantierService(
     return true;
   } catch (error) {
     console.error('Error in deleteChantierService:', error);
+    throw error;
+  }
+}
+
+export async function getChantierFicheService(chantierId: string): Promise<ChantierFicheData | null> {
+  try {
+    const fiche = await prisma.chantierFiche.findUnique({
+      where: { chantierId },
+    });
+
+    if (!fiche) {
+      return null;
+    }
+
+    return {
+      aFacturerValues: fiche.aFacturerValues as Record<string, { abattage: string; debardage: string }>,
+      fraisGestionValues: fiche.fraisGestionValues as Record<number, string>,
+      prixUHT: fiche.prixUHT as { aba: string; deb: string },
+    };
+  } catch (error) {
+    console.error("Error in getChantierFicheService:", error);
+    throw error;
+  }
+}
+
+export async function saveChantierFicheService(
+  chantierId: string,
+  data: ChantierFicheData
+): Promise<ChantierFicheData> {
+  try {
+    const fiche = await prisma.chantierFiche.upsert({
+      where: { chantierId },
+      create: {
+        chantierId,
+        aFacturerValues: data.aFacturerValues,
+        fraisGestionValues: data.fraisGestionValues,
+        prixUHT: data.prixUHT,
+      },
+      update: {
+        aFacturerValues: data.aFacturerValues,
+        fraisGestionValues: data.fraisGestionValues,
+        prixUHT: data.prixUHT,
+      },
+    });
+
+    return {
+      aFacturerValues: fiche.aFacturerValues as Record<string, { abattage: string; debardage: string }>,
+      fraisGestionValues: fiche.fraisGestionValues as Record<number, string>,
+      prixUHT: fiche.prixUHT as { aba: string; deb: string },
+    };
+  } catch (error) {
+    console.error("Error in saveChantierFicheService:", error);
     throw error;
   }
 }

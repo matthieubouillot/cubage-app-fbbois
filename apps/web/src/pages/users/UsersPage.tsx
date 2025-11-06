@@ -11,6 +11,7 @@ import {
   type CreateUserPayload,
   type UpdateUserPayload,
 } from "../../features/users/api";
+import { listEntreprises, type EntrepriseDTO } from "../../features/entreprises/api";
 import MobileBack from "../../components/MobileBack";
 
 
@@ -46,7 +47,7 @@ export default function UsersPage() {
     <div className="px-4 py-4 sm:py-6">
       <div className="max-w-7xl mx-auto space-y-6">
         {/* Barre retour mobile — flottant, toujours visible */}
-        <MobileBack fallback="/home" variant="fixed" />
+        <MobileBack fallback="/home" variant="fixed" className="md:block" />
 
         {/* Header */}
         <header className="text-center space-y-2">
@@ -87,7 +88,7 @@ export default function UsersPage() {
               key={u.id}
               className="bg-white border rounded-2xl p-4 shadow-sm"
             >
-              <div className="text-base font-semibold text-center">
+              <div className="text-base text-center">
                 {u.lastName} {u.firstName}
               </div>
               <div className="mt-1 text-center text-xs">
@@ -103,8 +104,13 @@ export default function UsersPage() {
               <div className="mt-3 space-y-1 text-center">
                 <div className="text-xs text-gray-500">{u.email}</div>
                 <div className="text-xs text-gray-500">{u.phone}</div>
+                {u.company?.name && (
+                  <div className="text-xs text-gray-600">
+                    {u.company.name}
+                  </div>
+                )}
                 <div className="text-[11px] text-gray-500">
-                  Plage: <b>{u.numStart}</b> — <b>{u.numEnd}</b>
+                  Plage: {u.numStart} — {u.numEnd}
                 </div>
               </div>
 
@@ -146,6 +152,7 @@ export default function UsersPage() {
                     <Th>Email</Th>
                     <Th>Téléphone</Th>
                     <Th className="text-center">Plage num.</Th>
+                    <Th>Entreprise</Th>
                     <Th className="text-center w-[220px]">Actions</Th>
                   </tr>
                 </thead>
@@ -153,7 +160,7 @@ export default function UsersPage() {
                   {rows.map((u) => (
                     <tr key={u.id} className="border-t border-gray-200">
                       <Td>
-                        <div className="font-medium">
+                        <div>
                           {u.lastName} {u.firstName}
                         </div>
                       </Td>
@@ -168,10 +175,11 @@ export default function UsersPage() {
                       </Td>
                       <Td className="text-gray-700">{u.email}</Td>
                       <Td className="text-gray-700">{u.phone}</Td>
-                      <Td className="text-center">
-                        <span className="font-medium">
-                          {u.numStart} — {u.numEnd}
-                        </span>
+                      <Td className="text-center text-gray-700">
+                        {u.numStart} — {u.numEnd}
+                      </Td>
+                      <Td className="text-gray-700">
+                        {u.company?.name || "—"}
                       </Td>
                       <Td className="text-center">
                         <div className="flex items-center justify-center gap-2">
@@ -330,9 +338,37 @@ function UserModal(props: UserModalProps) {
   );
   const [numEnd, setEnd] = useState(initial ? String(initial.numEnd) : "");
   const [password, setPwd] = useState("");
+  const [entreprises, setEntreprises] = useState<EntrepriseDTO[]>([]);
+  const [selectedCompanyId, setSelectedCompanyId] = useState<string | null>(
+    initial?.companyId ?? null
+  );
+  const [companyMode, setCompanyMode] = useState<"select" | "create">("select");
+  const [newCompanyName, setNewCompanyName] = useState("");
 
   const [err, setErr] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+
+  // Charger les entreprises au montage et à chaque fois que la modale est visible
+  useEffect(() => {
+    const loadEntreprises = async () => {
+      try {
+        const entreprisesList = await listEntreprises();
+        setEntreprises(entreprisesList);
+      } catch (e) {
+        console.error("Erreur chargement entreprises:", e);
+      }
+    };
+    loadEntreprises();
+  }, []);
+
+  // Réinitialiser le mode entreprise quand on change d'utilisateur en édition
+  useEffect(() => {
+    if (initial) {
+      setSelectedCompanyId(initial.companyId ?? null);
+      setCompanyMode("select");
+      setNewCompanyName("");
+    }
+  }, [initial]);
 
   async function submit() {
     try {
@@ -354,7 +390,26 @@ function UserModal(props: UserModalProps) {
       if (!Number.isFinite(nStart) || !Number.isFinite(nEnd) || nStart > nEnd)
         throw new Error("Plage de numérotation invalide.");
 
+      // Validation entreprise obligatoire
+      if (companyMode === "create") {
+        if (!newCompanyName.trim()) {
+          throw new Error("Le nom de l'entreprise est requis.");
+        }
+      } else {
+        if (!selectedCompanyId) {
+          throw new Error("Une entreprise est obligatoire.");
+        }
+      }
+
       setBusy(true);
+
+      // Gérer l'entreprise
+      let companyPayload: { companyId?: string | null; companyName?: string } = {};
+      if (companyMode === "create") {
+        companyPayload.companyName = newCompanyName.trim();
+      } else {
+        companyPayload.companyId = selectedCompanyId;
+      }
 
       if (isEdit) {
         const payload: UpdateUserPayload = {
@@ -364,6 +419,7 @@ function UserModal(props: UserModalProps) {
           phone,
           numStart: nStart,
           numEnd: nEnd,
+          ...companyPayload,
         };
         await props.onSubmit(payload);
       } else {
@@ -381,8 +437,28 @@ function UserModal(props: UserModalProps) {
           numStart: nStart,
           numEnd: nEnd,
           password,
+          ...companyPayload,
         };
         await props.onSubmit(payload);
+      }
+
+      // Recharger la liste des entreprises si on a créé une nouvelle entreprise
+      if (companyMode === "create") {
+        try {
+          const updatedEntreprises = await listEntreprises();
+          setEntreprises(updatedEntreprises);
+          // Si on vient de créer une entreprise, passer en mode sélection et la sélectionner
+          const newCompany = updatedEntreprises.find(
+            (ent) => ent.name === newCompanyName.trim()
+          );
+          if (newCompany) {
+            setSelectedCompanyId(newCompany.id);
+            setCompanyMode("select");
+            setNewCompanyName("");
+          }
+        } catch (e) {
+          console.error("Erreur rechargement entreprises:", e);
+        }
       }
 
       onClose();
@@ -506,6 +582,73 @@ function UserModal(props: UserModalProps) {
                 onChange={(e) => setEnd(e.target.value.replace(/\D/g, ""))}
               />
             </Field>
+          </div>
+
+          {/* Champ Entreprise */}
+          <div className="space-y-2">
+            <div className="flex gap-2 items-center">
+              <label className="text-xs text-gray-600">Entreprise *</label>
+              <div className="flex gap-2 text-xs">
+                <button
+                  type="button"
+                  onClick={async () => {
+                    setCompanyMode("select");
+                    setNewCompanyName("");
+                    // Recharger la liste des entreprises pour avoir les dernières créées
+                    try {
+                      const updatedEntreprises = await listEntreprises();
+                      setEntreprises(updatedEntreprises);
+                    } catch (e) {
+                      console.error("Erreur rechargement entreprises:", e);
+                    }
+                  }}
+                  className={`px-2 py-1 rounded ${
+                    companyMode === "select"
+                      ? "bg-black text-white"
+                      : "bg-gray-100 text-gray-700"
+                  }`}
+                >
+                  Sélectionner
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setCompanyMode("create");
+                    setSelectedCompanyId(null);
+                  }}
+                  className={`px-2 py-1 rounded ${
+                    companyMode === "create"
+                      ? "bg-black text-white"
+                      : "bg-gray-100 text-gray-700"
+                  }`}
+                >
+                  Créer
+                </button>
+              </div>
+            </div>
+
+            {companyMode === "select" ? (
+              <select
+                value={selectedCompanyId || ""}
+                onChange={(e) =>
+                  setSelectedCompanyId(e.target.value || null)
+                }
+                className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-black focus:border-transparent"
+              >
+                <option value="">Aucune entreprise</option>
+                {entreprises.map((ent) => (
+                  <option key={ent.id} value={ent.id}>
+                    {ent.name}
+                  </option>
+                ))}
+              </select>
+            ) : (
+              <Input
+                value={newCompanyName}
+                onChange={(e) => setNewCompanyName(e.target.value)}
+                placeholder="Nom de la nouvelle entreprise"
+              />
+            )}
           </div>
 
           {err && <p className="text-sm text-red-600">{err}</p>}

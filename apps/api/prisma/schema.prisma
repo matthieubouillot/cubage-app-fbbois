@@ -9,6 +9,18 @@ datasource db {
 
 /// *
 ///  * ──────────────────────────────────────────────────────────────
+///  * ENTREPRISES
+///  * ───────────────────────────────────────────────────────────────
+model Entreprise {
+  id        String   @id @default(uuid())
+  name      String   @unique
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  users     User[]
+}
+
+/// *
+///  * ──────────────────────────────────────────────────────────────
 ///  * UTILISATEURS & ROLES
 ///  * ───────────────────────────────────────────────────────────────
 model User {
@@ -21,12 +33,16 @@ model User {
   numStart             Int
   numEnd               Int
   createdAt            DateTime              @default(now())
+  companyId            String?
   roles                Role[]
+  company              Entreprise?           @relation(fields: [companyId], references: [id], onDelete: SetNull)
   assignments          Assignment[]
   debardeurAssignments DebardeurAssignment[]
   passwordResetTokens  PasswordResetToken[]
   debardeurSaisies     Saisie[]              @relation("SaisieDebardeur")
   saisies              Saisie[]
+
+  @@index([companyId])
 }
 
 model PasswordResetToken {
@@ -179,6 +195,7 @@ model Chantier {
   debardeurAssignments DebardeurAssignment[]
   gpsPoints            GPSPoint[]
   saisies              Saisie[]
+  fiche                ChantierFiche?
   
   @@index([propertyId])
 }
@@ -274,6 +291,23 @@ model DebardeurAssignment {
   user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@unique([userId, chantierId])
+  @@index([chantierId])
+}
+
+/// *
+///  * ──────────────────────────────────────────────────────────────
+///  * FICHE CHANTIER (données saisies manuellement)
+///  * ───────────────────────────────────────────────────────────────
+model ChantierFiche {
+  id              String   @id @default(uuid())
+  chantierId      String   @unique
+  aFacturerValues Json     // Record<string, { abattage: string; debardage: string }>
+  fraisGestionValues Json  // Record<number, string>
+  prixUHT         Json     // { aba: string; deb: string }
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  chantier        Chantier @relation(fields: [chantierId], references: [id], onDelete: Cascade)
+
   @@index([chantierId])
 }
 

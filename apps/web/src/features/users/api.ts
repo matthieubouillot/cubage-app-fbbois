@@ -12,6 +12,11 @@ export type UserDTO = {
   numStart: number;
   numEnd: number;
   createdAt?: string;
+  companyId?: string | null;
+  company?: {
+    id: string;
+    name: string;
+  } | null;
 };
 
 export type CreateUserPayload = {
@@ -24,6 +29,8 @@ export type CreateUserPayload = {
   numEnd: number;
   /** mot de passe temporaire OBLIGATOIRE côté UI */
   password: string;
+  companyId?: string | null;
+  companyName?: string; // Si fourni, crée une nouvelle entreprise
 };
 
 export type UpdateUserPayload = {
@@ -34,6 +41,8 @@ export type UpdateUserPayload = {
   numStart: number;
   numEnd: number;
   // (email non modifiable ici)
+  companyId?: string | null;
+  companyName?: string; // Si fourni, crée une nouvelle entreprise
 };
 
 export async function listUsers() {

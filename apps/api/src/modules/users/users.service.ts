@@ -41,6 +41,13 @@ export async function getUsersService(role?: Role) {
       numStart: true,
       numEnd: true,
       createdAt: true,
+      companyId: true,
+      company: {
+        select: {
+          id: true,
+          name: true,
+        },
+      },
     },
     orderBy: [{ numStart: "asc" }, { numEnd: "asc" }],
   });
@@ -59,6 +66,13 @@ export async function getUserByIdService(id: string) {
       numStart: true,
       numEnd: true,
       createdAt: true,
+      companyId: true,
+      company: {
+        select: {
+          id: true,
+          name: true,
+        },
+      },
     },
   });
 }
@@ -73,6 +87,8 @@ export async function createUserService(input: {
   numStart: number;
   numEnd: number;
   password: string; // OBLIGATOIRE
+  companyId?: string | null;
+  companyName?: string; // Si fourni, crée une nouvelle entreprise
 }) {
   if (!NAME_RE.test(input.firstName)) throw new Error("Prénom invalide");
   if (!NAME_RE.test(input.lastName)) throw new Error("Nom invalide");
@@ -91,6 +107,40 @@ export async function createUserService(input: {
     throw new Error("Cette plage num. chevauche déjà un autre utilisateur");
   }
 
+  // Gérer l'entreprise
+  let finalCompanyId: string | null = null;
+  
+  if (input.companyName) {
+    // Créer une nouvelle entreprise
+    const trimmedName = input.companyName.trim();
+    if (!trimmedName) {
+      throw new Error("Le nom de l'entreprise est requis");
+    }
+    
+    // Vérifier si une entreprise avec ce nom existe déjà
+    const existing = await prisma.entreprise.findUnique({
+      where: { name: trimmedName },
+    });
+    
+    if (existing) {
+      finalCompanyId = existing.id;
+    } else {
+      const newCompany = await prisma.entreprise.create({
+        data: { name: trimmedName },
+      });
+      finalCompanyId = newCompany.id;
+    }
+  } else if (input.companyId) {
+    // Vérifier que l'entreprise existe
+    const company = await prisma.entreprise.findUnique({
+      where: { id: input.companyId },
+    });
+    if (!company) {
+      throw new Error("Entreprise introuvable");
+    }
+    finalCompanyId = input.companyId;
+  }
+
   const hash = await bcrypt.hash(input.password, 10);
 
   const user = await prisma.user.create({
@@ -103,6 +153,7 @@ export async function createUserService(input: {
       password: hash,
       numStart: input.numStart,
       numEnd: input.numEnd,
+      companyId: finalCompanyId,
     },
     select: {
       id: true,
@@ -114,6 +165,13 @@ export async function createUserService(input: {
       numStart: true,
       numEnd: true,
       createdAt: true,
+      companyId: true,
+      company: {
+        select: {
+          id: true,
+          name: true,
+        },
+      },
     },
   });
 
@@ -130,6 +188,8 @@ export async function updateUserService(
     phone: string;
     numStart: number;
     numEnd: number;
+    companyId?: string | null;
+    companyName?: string; // Si fourni, crée une nouvelle entreprise
   },
 ) {
   if (!NAME_RE.test(input.firstName)) throw new Error("Prénom invalide");
@@ -146,6 +206,51 @@ export async function updateUserService(
     throw new Error("Cette plage num. chevauche déjà un autre utilisateur");
   }
 
+  // Gérer l'entreprise
+  let finalCompanyId: string | null = null;
+  
+  if (input.companyName) {
+    // Créer une nouvelle entreprise
+    const trimmedName = input.companyName.trim();
+    if (!trimmedName) {
+      throw new Error("Le nom de l'entreprise est requis");
+    }
+    
+    // Vérifier si une entreprise avec ce nom existe déjà
+    const existing = await prisma.entreprise.findUnique({
+      where: { name: trimmedName },
+    });
+    
+    if (existing) {
+      finalCompanyId = existing.id;
+    } else {
+      const newCompany = await prisma.entreprise.create({
+        data: { name: trimmedName },
+      });
+      finalCompanyId = newCompany.id;
+    }
+  } else if (input.companyId !== undefined) {
+    if (input.companyId === null) {
+      finalCompanyId = null;
+    } else {
+      // Vérifier que l'entreprise existe
+      const company = await prisma.entreprise.findUnique({
+        where: { id: input.companyId },
+      });
+      if (!company) {
+        throw new Error("Entreprise introuvable");
+      }
+      finalCompanyId = input.companyId;
+    }
+  } else {
+    // Si ni companyId ni companyName ne sont fournis, conserver l'entreprise existante
+    const existing = await prisma.user.findUnique({
+      where: { id },
+      select: { companyId: true },
+    });
+    finalCompanyId = existing?.companyId ?? null;
+  }
+
   const user = await prisma.user.update({
     where: { id },
     data: {
@@ -155,6 +260,7 @@ export async function updateUserService(
       phone: input.phone.trim(),
       numStart: input.numStart,
       numEnd: input.numEnd,
+      companyId: finalCompanyId,
     },
     select: {
       id: true,
@@ -166,6 +272,13 @@ export async function updateUserService(
       numStart: true,
       numEnd: true,
       createdAt: true,
+      companyId: true,
+      company: {
+        select: {
+          id: true,
+          name: true,
+        },
+      },
     },
   });
 
