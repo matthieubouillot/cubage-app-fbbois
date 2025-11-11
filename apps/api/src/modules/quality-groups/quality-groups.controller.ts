@@ -45,6 +45,10 @@ export class QualityGroupsController {
       if (!data.scieurId) {
         return res.status(400).json({ error: 'Scieur ID is required' });
       }
+
+      if (!data.category || data.category.trim() === '') {
+        return res.status(400).json({ error: 'Category is required' });
+      }
       
       if (!data.essenceIds || data.essenceIds.length === 0) {
         return res.status(400).json({ error: 'At least one essence is required' });
@@ -82,6 +86,10 @@ export class QualityGroupsController {
       
       if (!data.scieurId) {
         return res.status(400).json({ error: 'Scieur ID is required' });
+      }
+
+      if (!data.category || data.category.trim() === '') {
+        return res.status(400).json({ error: 'Category is required' });
       }
       
       if (!data.essenceIds || data.essenceIds.length === 0) {

@@ -26,11 +26,13 @@ export interface QualityGroupDTO {
     id: string;
     lot: string;
     convention: string;
+    qualityGroupId: string;
   }[];
 }
 
 export interface CreateQualityGroupDTO {
   name: string;
+  category: string;
   qualiteId: string;
   scieurId: string;
   pourcentageEcorce: number;
@@ -39,6 +41,7 @@ export interface CreateQualityGroupDTO {
 
 export interface UpdateQualityGroupDTO {
   name: string;
+  category: string;
   qualiteId: string;
   scieurId: string;
   pourcentageEcorce: number;
@@ -56,37 +59,42 @@ export class QualityGroupsService {
             essence: true
           }
         },
-        lotConventions: true
+        lotConventions: true,
       },
       orderBy: { name: 'asc' }
     });
 
-          return qualityGroups.map(group => ({
-            id: group.id,
-            name: group.name,
-            category: group.category,
-            qualiteId: group.qualiteId,
-            scieurId: group.scieurId,
-            pourcentageEcorce: group.pourcentageEcorce,
-            createdAt: group.createdAt,
-            qualite: {
-              id: group.qualite.id,
-              name: group.qualite.name
-            },
-            scieur: {
-              id: group.scieur.id,
-              name: group.scieur.name
-            },
-            essences: group.essences.map(e => ({
-              id: e.essence.id,
-              name: e.essence.name
-            })),
-            lotConventions: group.lotConventions ? {
+    return qualityGroups.map((group) => ({
+      id: group.id,
+      name: group.name,
+      category: group.category,
+      qualiteId: group.qualiteId,
+      scieurId: group.scieurId,
+      pourcentageEcorce: group.pourcentageEcorce,
+      createdAt: group.createdAt,
+      qualite: {
+        id: group.qualite.id,
+        name: group.qualite.name,
+      },
+      scieur: {
+        id: group.scieur.id,
+        name: group.scieur.name,
+      },
+      essences: group.essences.map((e) => ({
+        id: e.essence.id,
+        name: e.essence.name,
+      })),
+      lotConventions: group.lotConventions
+        ? [
+            {
               id: group.lotConventions.id,
               lot: group.lotConventions.lot,
-              convention: group.lotConventions.convention
-            } : null
-          }));
+              convention: group.lotConventions.convention,
+              qualityGroupId: group.lotConventions.qualityGroupId,
+            },
+          ]
+        : [],
+    }));
   }
 
   async findById(id: string): Promise<QualityGroupDTO | null> {
@@ -100,7 +108,7 @@ export class QualityGroupsService {
             essence: true
           }
         },
-        lotConventions: true
+        lotConventions: true,
       }
     });
 
@@ -126,11 +134,16 @@ export class QualityGroupsService {
         id: e.essence.id,
         name: e.essence.name
       })),
-      lotConventions: qualityGroup.lotConventions ? {
-        id: qualityGroup.lotConventions.id,
-        lot: qualityGroup.lotConventions.lot,
-        convention: qualityGroup.lotConventions.convention
-      } : null
+      lotConventions: qualityGroup.lotConventions
+        ? [
+            {
+              id: qualityGroup.lotConventions.id,
+              lot: qualityGroup.lotConventions.lot,
+              convention: qualityGroup.lotConventions.convention,
+              qualityGroupId: qualityGroup.lotConventions.qualityGroupId,
+            },
+          ]
+        : [],
     };
   }
 
@@ -138,6 +151,7 @@ export class QualityGroupsService {
     const qualityGroup = await prisma.qualityGroup.create({
       data: {
         name: data.name,
+        category: data.category,
         qualiteId: data.qualiteId,
         scieurId: data.scieurId,
         pourcentageEcorce: data.pourcentageEcorce,
@@ -155,13 +169,14 @@ export class QualityGroupsService {
             essence: true
           }
         },
-        lotConventions: true
+        lotConventions: true,
       }
     });
 
     return {
       id: qualityGroup.id,
       name: qualityGroup.name,
+      category: qualityGroup.category,
       qualiteId: qualityGroup.qualiteId,
       scieurId: qualityGroup.scieurId,
       pourcentageEcorce: qualityGroup.pourcentageEcorce,
@@ -178,17 +193,22 @@ export class QualityGroupsService {
         id: e.essence.id,
         name: e.essence.name
       })),
-      lotConventions: qualityGroup.lotConventions ? {
-        id: qualityGroup.lotConventions.id,
-        lot: qualityGroup.lotConventions.lot,
-        convention: qualityGroup.lotConventions.convention
-      } : null
+      lotConventions: qualityGroup.lotConventions
+        ? [
+            {
+              id: qualityGroup.lotConventions.id,
+              lot: qualityGroup.lotConventions.lot,
+              convention: qualityGroup.lotConventions.convention,
+              qualityGroupId: qualityGroup.lotConventions.qualityGroupId,
+            },
+          ]
+        : [],
     };
   }
 
   async update(id: string, data: UpdateQualityGroupDTO): Promise<QualityGroupDTO> {
     // Supprimer les anciennes relations essences
-    await prisma.essenceOnQualityGroup.deleteMany({
+    await prisma.qualityGroupEssence.deleteMany({
       where: { qualityGroupId: id }
     });
 
@@ -196,6 +216,7 @@ export class QualityGroupsService {
       where: { id },
       data: {
         name: data.name,
+        category: data.category,
         qualiteId: data.qualiteId,
         scieurId: data.scieurId,
         pourcentageEcorce: data.pourcentageEcorce,
@@ -213,13 +234,14 @@ export class QualityGroupsService {
             essence: true
           }
         },
-        lotConventions: true
+        lotConventions: true,
       }
     });
 
     return {
       id: qualityGroup.id,
       name: qualityGroup.name,
+      category: qualityGroup.category,
       qualiteId: qualityGroup.qualiteId,
       scieurId: qualityGroup.scieurId,
       pourcentageEcorce: qualityGroup.pourcentageEcorce,
@@ -236,11 +258,16 @@ export class QualityGroupsService {
         id: e.essence.id,
         name: e.essence.name
       })),
-      lotConventions: qualityGroup.lotConventions ? {
-        id: qualityGroup.lotConventions.id,
-        lot: qualityGroup.lotConventions.lot,
-        convention: qualityGroup.lotConventions.convention
-      } : null
+      lotConventions: qualityGroup.lotConventions
+        ? [
+            {
+              id: qualityGroup.lotConventions.id,
+              lot: qualityGroup.lotConventions.lot,
+              convention: qualityGroup.lotConventions.convention,
+              qualityGroupId: qualityGroup.lotConventions.qualityGroupId,
+            },
+          ]
+        : [],
     };
   }
 

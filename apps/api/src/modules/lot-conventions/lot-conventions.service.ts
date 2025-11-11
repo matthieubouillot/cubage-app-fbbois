@@ -7,7 +7,6 @@ export interface LotConventionDTO {
   lot: string;
   convention: string;
   qualityGroupId: string;
-  createdAt: Date;
   qualityGroup: {
     id: string;
     name: string;
@@ -43,7 +42,6 @@ export class LotConventionsService {
       lot: lc.lot,
       convention: lc.convention,
       qualityGroupId: lc.qualityGroupId,
-      createdAt: lc.createdAt,
       qualityGroup: {
         id: lc.qualityGroup.id,
         name: lc.qualityGroup.name
@@ -68,7 +66,6 @@ export class LotConventionsService {
       lot: lc.lot,
       convention: lc.convention,
       qualityGroupId: lc.qualityGroupId,
-      createdAt: lc.createdAt,
       qualityGroup: {
         id: lc.qualityGroup.id,
         name: lc.qualityGroup.name
@@ -91,7 +88,6 @@ export class LotConventionsService {
       lot: lotConvention.lot,
       convention: lotConvention.convention,
       qualityGroupId: lotConvention.qualityGroupId,
-      createdAt: lotConvention.createdAt,
       qualityGroup: {
         id: lotConvention.qualityGroup.id,
         name: lotConvention.qualityGroup.name
@@ -116,7 +112,6 @@ export class LotConventionsService {
       lot: lotConvention.lot,
       convention: lotConvention.convention,
       qualityGroupId: lotConvention.qualityGroupId,
-      createdAt: lotConvention.createdAt,
       qualityGroup: {
         id: lotConvention.qualityGroup.id,
         name: lotConvention.qualityGroup.name
@@ -141,7 +136,6 @@ export class LotConventionsService {
       lot: lotConvention.lot,
       convention: lotConvention.convention,
       qualityGroupId: lotConvention.qualityGroupId,
-      createdAt: lotConvention.createdAt,
       qualityGroup: {
         id: lotConvention.qualityGroup.id,
         name: lotConvention.qualityGroup.name

@@ -22,8 +22,6 @@ export type LotConvention = {
   lot: string;
   convention: string;
   qualityGroupId: string;
-  createdAt: string;
-  qualityGroup: QualityGroup;
 };
 export type Bucheron = { id: string; firstName: string; lastName: string };
 

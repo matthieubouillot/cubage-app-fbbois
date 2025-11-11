@@ -33,11 +33,6 @@ export interface LotConvention {
   lot: string;
   convention: string;
   qualityGroupId: string;
-  createdAt: string;
-  qualityGroup: {
-    id: string;
-    name: string;
-  };
 }
 
 export interface Client {
