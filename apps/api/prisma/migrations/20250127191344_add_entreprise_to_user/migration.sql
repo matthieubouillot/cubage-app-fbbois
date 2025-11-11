@@ -1,5 +1,5 @@
 -- CreateTable
-CREATE TABLE "Entreprise" (
+CREATE TABLE IF NOT EXISTS "public"."Entreprise" (
     "id" TEXT NOT NULL,
     "name" TEXT NOT NULL,
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -12,11 +12,23 @@ CREATE TABLE "Entreprise" (
 CREATE UNIQUE INDEX "Entreprise_name_key" ON "Entreprise"("name");
 
 -- AlterTable
-ALTER TABLE "User" ADD COLUMN "companyId" TEXT;
+ALTER TABLE "public"."User" ADD COLUMN IF NOT EXISTS "companyId" TEXT;
 
 -- CreateIndex
-CREATE INDEX "User_companyId_idx" ON "User"("companyId");
+CREATE INDEX IF NOT EXISTS "User_companyId_idx" ON "public"."User"("companyId");
 
 -- AddForeignKey
-ALTER TABLE "User" ADD CONSTRAINT "User_companyId_fkey" FOREIGN KEY ("companyId") REFERENCES "Entreprise"("id") ON DELETE SET NULL ON UPDATE CASCADE;
-
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1
+    FROM pg_constraint
+    WHERE conname = 'User_companyId_fkey'
+      AND conrelid = 'public."User"'::regclass
+  ) THEN
+    ALTER TABLE "public"."User"
+      ADD CONSTRAINT "User_companyId_fkey"
+      FOREIGN KEY ("companyId") REFERENCES "public"."Entreprise"("id")
+      ON DELETE SET NULL ON UPDATE CASCADE;
+  END IF;
+END $$;
