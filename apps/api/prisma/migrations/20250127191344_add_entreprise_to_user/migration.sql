@@ -9,7 +9,7 @@ CREATE TABLE IF NOT EXISTS "public"."Entreprise" (
 );
 
 -- CreateIndex
-CREATE UNIQUE INDEX "Entreprise_name_key" ON "Entreprise"("name");
+CREATE UNIQUE INDEX IF NOT EXISTS "Entreprise_name_key" ON "public"."Entreprise"("name");
 
 -- AlterTable
 ALTER TABLE "public"."User" ADD COLUMN IF NOT EXISTS "companyId" TEXT;
