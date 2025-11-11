@@ -1,38 +1,8 @@
--- Drop existing tables if they remain from a previous schema
-DROP TABLE IF EXISTS "public"."ChantierFiche" CASCADE;
-DROP TABLE IF EXISTS "public"."DebardeurAssignment" CASCADE;
-DROP TABLE IF EXISTS "public"."GPSPoint" CASCADE;
-DROP TABLE IF EXISTS "public"."Saisie" CASCADE;
-DROP TABLE IF EXISTS "public"."Assignment" CASCADE;
-DROP TABLE IF EXISTS "public"."ChantierQualityGroup" CASCADE;
-DROP TABLE IF EXISTS "public"."Chantier" CASCADE;
-DROP TABLE IF EXISTS "public"."LotConvention" CASCADE;
-DROP TABLE IF EXISTS "public"."QualityGroupEssence" CASCADE;
-DROP TABLE IF EXISTS "public"."QualityGroup" CASCADE;
-DROP TABLE IF EXISTS "public"."Scieur" CASCADE;
-DROP TABLE IF EXISTS "public"."Qualite" CASCADE;
-DROP TABLE IF EXISTS "public"."Essence" CASCADE;
-DROP TABLE IF EXISTS "public"."Property" CASCADE;
-DROP TABLE IF EXISTS "public"."Client" CASCADE;
-DROP TABLE IF EXISTS "public"."PasswordResetToken" CASCADE;
-DROP TABLE IF EXISTS "public"."User" CASCADE;
-DROP TABLE IF EXISTS "public"."Entreprise" CASCADE;
-
 -- CreateSchema
 CREATE SCHEMA IF NOT EXISTS "public";
 
 -- CreateEnum
-DO $$
-BEGIN
-  IF NOT EXISTS (
-    SELECT 1
-    FROM pg_type t
-    JOIN pg_namespace n ON n.oid = t.typnamespace
-    WHERE t.typname = 'Role' AND n.nspname = 'public'
-  ) THEN
-    CREATE TYPE "public"."Role" AS ENUM ('SUPERVISEUR', 'BUCHERON', 'DEBARDEUR');
-  END IF;
-END $$;
+CREATE TYPE "public"."Role" AS ENUM ('SUPERVISEUR', 'BUCHERON', 'DEBARDEUR');
 
 -- CreateTable
 CREATE TABLE "public"."Entreprise" (

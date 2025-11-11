@@ -95,46 +95,6 @@ async function main() {
       phone: "0764024451",
       email: "simon.combes@hotmail.fr",
     },
-
-    // --- UTILISATEURS AVEC RÔLES MULTIPLES ---
-    {
-      lastName: "Martin",
-      firstName: "Pierre",
-      roles: ["SUPERVISEUR", "DEBARDEUR"],
-      numStart: 12001,
-      numEnd: 13000,
-      phone: "0612345678",
-      email: "pierre.martin@example.com",
-    },
-    {
-      lastName: "Durand",
-      firstName: "Jean",
-      roles: ["BUCHERON", "DEBARDEUR"],
-      numStart: 13001,
-      numEnd: 14000,
-      phone: "0623456789",
-      email: "jean.durand@example.com",
-    },
-
-    // --- DÉBARDEURS ---
-    {
-      lastName: "Leroy",
-      firstName: "Michel",
-      roles: ["DEBARDEUR"],
-      numStart: 14001,
-      numEnd: 15000,
-      phone: "0634567890",
-      email: "michel.leroy@example.com",
-    },
-    {
-      lastName: "Moreau",
-      firstName: "Claude",
-      roles: ["DEBARDEUR"],
-      numStart: 15001,
-      numEnd: 16000,
-      phone: "0645678901",
-      email: "claude.moreau@example.com",
-    },
   ];
 
   for (const u of users) {

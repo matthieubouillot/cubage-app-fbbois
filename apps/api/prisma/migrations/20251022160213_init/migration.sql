@@ -1,1 +1,0 @@
--- Migration vidée : l’initialisation du schéma est désormais gérée par `20250101000000_baseline`.
