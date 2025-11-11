@@ -1,22 +1,26 @@
 import React, { useEffect, useMemo, useState } from "react";
-import { useParams } from "react-router-dom";
+import { useParams, useNavigate, Link } from "react-router-dom";
+import { MapPin, Map, FileText } from "lucide-react";
 
 import {
   fetchChantier,
   type ChantierDetail,
 } from "../../features/chantiers/api";
+import { fetchGPSPoints } from "../../features/gps-points/api";
 import { getSaisiesStats, listSaisies, type SaisieStats, type SaisieRow } from "../../features/saisies/api";
-import { getUser, type User } from "../../features/auth/auth";
+import { getUser, type User, isSuperviseur, canRead } from "../../features/auth/auth";
 
 import ChipTabs from "../../components/ChipTabs";
 import StatsTable from "../../components/StatsTable";
 import SaisieTab from "./SaisieTab";
 import MobileBack from "../../components/MobileBack";
+import GPSPointsManager from "../../components/GPSPointsManager";
 
 type Tab = { id: string; label: string; hint?: string };
 
 export default function ChantierDetail() {
   const { id } = useParams();
+  const navigate = useNavigate();
   const [data, setData] = useState<ChantierDetail | null>(null);
   const [err, setErr] = useState<string | null>(null);
 
@@ -44,6 +48,9 @@ export default function ChantierDetail() {
     if (typeof window === "undefined") return false;
     return window.location.hash.includes("stats=1");
   });
+  const [gpsPointsCount, setGpsPointsCount] = useState(0);
+  const [hasGpsPoints, setHasGpsPoints] = useState(false);
+  const [isOffline, setIsOffline] = useState(!navigator.onLine);
 
   // Tick de mutations (add/edit/delete) pour recharger les stats
   const [mutTick, setMutTick] = useState(0);
@@ -66,16 +73,26 @@ export default function ChantierDetail() {
         fetchChantier(id).then(setData).catch(() => {});
       }
     };
+    const onOnline = () => setIsOffline(false);
+    const onOffline = () => setIsOffline(true);
+    
     window.addEventListener("cubage:reconnected", onReconnected as any);
-    return () => window.removeEventListener("cubage:reconnected", onReconnected as any);
+    window.addEventListener("online", onOnline);
+    window.addEventListener("offline", onOffline);
+    
+    return () => {
+      window.removeEventListener("cubage:reconnected", onReconnected as any);
+      window.removeEventListener("online", onOnline);
+      window.removeEventListener("offline", onOffline);
+    };
   }, [id]);
 
   const tabs = useMemo<Tab[]>(() => {
-    if (!data) return [];
-    return data.qualites.map((q) => ({
-      id: `q_${q.id}`,
-      label: `${q.essence.name} — ${q.name}`,
-      hint: `${q.pourcentageEcorce}% d'écorce`,
+    if (!data || !data.qualityGroups) return [];
+    return data.qualityGroups.map((qg) => ({
+      id: `qg_${qg.id}`,
+      label: `${qg.essences.map(e => e.name).join(' + ')} ${qg.qualite.name} ${qg.scieur.name}`,
+      hint: undefined,
     }));
   }, [data]);
 
@@ -89,15 +106,15 @@ export default function ChantierDetail() {
     }
   }, [tabs, active]);
 
-  const activeQualite = useMemo(() => {
+  const activeQualityGroup = useMemo(() => {
     if (!data || !active) return null;
-    const qid = active.replace(/^q_/, "");
-    return data.qualites.find((q) => q.id === qid) || null;
+    const qgid = active.replace(/^qg_/, "");
+    return data.qualityGroups.find((qg) => qg.id === qgid) || null;
   }, [data, active]);
 
   useEffect(() => {
     (async () => {
-      if (!data || !activeQualite) {
+      if (!data || !activeQualityGroup) {
         setStats(null);
         setGlobalStats(null);
         setUserStats(null);
@@ -107,19 +124,19 @@ export default function ChantierDetail() {
       try {
         const s = await getSaisiesStats(
           data.id,
-          activeQualite.id,
-          activeQualite.pourcentageEcorce ?? 0,
+          activeQualityGroup.id,
+          activeQualityGroup.pourcentageEcorce ?? 0,
         );
         setStats(s);
         
         // Récupérer les statistiques globales pour les bûcherons
         const currentUser = getUser();
-        if (currentUser?.role === "BUCHERON") {
+        if (currentUser?.roles.includes("BUCHERON") && !currentUser?.roles.includes("SUPERVISEUR")) {
           try {
             const gs = await getSaisiesStats(
               data.id,
-              activeQualite.id,
-              activeQualite.pourcentageEcorce ?? 0,
+              activeQualityGroup.id,
+              activeQualityGroup.pourcentageEcorce ?? 0,
               true, // global = true
             );
             setGlobalStats(gs);
@@ -131,7 +148,7 @@ export default function ChantierDetail() {
         }
         
         // Récupérer les rows pour les calculs suivants
-        const rows = await listSaisies(data.id, activeQualite.id);
+        const rows = await listSaisies(data.id, activeQualityGroup.id);
         const current = getUser();
         const toLocalYmd = (d: Date) => {
           const y = d.getFullYear();
@@ -171,10 +188,10 @@ export default function ChantierDetail() {
               let b = Number(r.volBetweenV1V2 || 0);
               let c = Number(r.volGeV2 || 0);
               
-              if (!a && !b && !c && activeQualite?.pourcentageEcorce != null) {
+              if (!a && !b && !c && activeQualityGroup?.pourcentageEcorce != null) {
                 const dM = Math.max(0, Number(r.diametre)) / 100;
                 const base = Math.PI * Math.pow(dM / 2, 2) * Math.max(0, Number(r.longueur));
-                const factor = 1 - Math.max(0, Math.min(100, activeQualite.pourcentageEcorce)) / 100;
+                const factor = 1 - Math.max(0, Math.min(100, activeQualityGroup.pourcentageEcorce)) / 100;
                 const vol = base * factor;
                 if (vol < 0.25) a = vol;
                 else if (vol < 0.5) b = vol;
@@ -206,30 +223,29 @@ export default function ChantierDetail() {
         }
 
         // Supervisor aggregation across all qualites of this chantier
-        // Build columns from chantier qualites (essence + qualité name)
-        const columns = (data.qualites || []).map((q) => ({
-          key: q.id,
-          label: `${q.essence.name} — ${q.name}`,
+        // Build columns from chantier qualites (essence + qualité name + scieur)
+        const columns = (data.qualityGroups || []).map((qg) => ({
+          key: qg.id,
+          label: `${qg.essences.map(e => e.name).join(' + ')} ${qg.qualite.name} ${qg.scieur.name}`,
         }));
         // For each qualite, fetch rows and aggregate by user
-        const userMap = new Map<string, { user: User; values: Record<string, number>; total: number }>();
+        const userMap: Record<string, { user: User; values: Record<string, number>; total: number }> = {};
         let grand = 0;
-        for (const q of data.qualites) {
-          const qRows = await listSaisies(data.id, q.id);
+        for (const qg of (data.qualityGroups || [])) {
+          const qRows = await listSaisies(data.id, qg.id);
           for (const r of qRows as SaisieRow[]) {
             const uid = r.user?.id;
             if (!uid || !r.user) continue;
             const vol = Number(r.volumeCalc) || 0;
             grand += vol;
-            if (!userMap.has(uid)) {
-              userMap.set(uid, { user: r.user as User, values: {}, total: 0 });
+            if (!userMap[uid]) {
+              userMap[uid] = { user: r.user as User, values: {}, total: 0 };
             }
-            const entry = userMap.get(uid)!;
-            entry.values[q.id] = (entry.values[q.id] || 0) + vol;
-            entry.total += vol;
+            userMap[uid].values[qg.id] = (userMap[uid].values[qg.id] || 0) + vol;
+            userMap[uid].total += vol;
           }
         }
-        const users = Array.from(userMap.values()).sort((a, b) =>
+        const users = Object.values(userMap).sort((a, b) =>
           (a.user.lastName || "").localeCompare(b.user.lastName || "")
         );
         setPerUserTotals({ users, columns, grandTotal: grand });
@@ -238,14 +254,26 @@ export default function ChantierDetail() {
         setTodayUser(null);
       }
     })();
-  }, [data, activeQualite, mutTick]);
+
+    // Vérifier si le qualityGroup actuel a des points GPS
+    (async () => {
+      if (activeQualityGroup && data) {
+        try {
+          const points = await fetchGPSPoints(data.id, activeQualityGroup.id);
+          setHasGpsPoints(points.length > 0);
+        } catch {
+          setHasGpsPoints(false);
+        }
+      }
+    })();
+  }, [data, activeQualityGroup, mutTick]);
 
   if (err) return <div className="p-4 text-red-600">{err}</div>;
   if (!data) return <div className="p-4 text-gray-600">Chargement…</div>;
-  if (!activeQualite)
-    return <div className="p-4 text-gray-600">Aucune qualité activée.</div>;
+  if (!activeQualityGroup)
+    return <div className="p-4 text-gray-600">Aucun groupe de qualité activé.</div>;
 
-  const activeEcorce = activeQualite.pourcentageEcorce ?? 0;
+  const activeEcorce = activeQualityGroup.pourcentageEcorce ?? 0;
   const setHash = (id: string, show: boolean) => {
     const flag = show ? "&stats=1" : "";
     window.location.hash = `${id}${flag}`;
@@ -255,14 +283,14 @@ export default function ChantierDetail() {
     if (!data) return;
     
     // Traiter chaque PDF de manière séquentielle avec une approche simplifiée
-    for (let i = 0; i < data.qualites.length; i++) {
-      const q = data.qualites[i];
+    for (let i = 0; i < (data.qualityGroups || []).length; i++) {
+      const qg = data.qualityGroups![i];
       try {
-        const s = await getSaisiesStats(data.id, q.id, q.pourcentageEcorce ?? 0);
-        const rows = (await listSaisies(data.id, q.id)) as SaisieRow[];
+        const s = await getSaisiesStats(data.id, qg.id, qg.pourcentageEcorce ?? 0);
+        const rows = (await listSaisies(data.id, qg.id)) as SaisieRow[];
         
         // Modifier le HTML pour inclure la numérotation directement dans le CSS
-        const htmlWithPageNumbers = buildExportHtmlWithPageNumbers(data, q, s, rows);
+        const htmlWithPageNumbers = buildExportHtmlWithPageNumbers(data, qg, s, rows);
         
         // Attendre que le PDF précédent soit complètement traité
         if (i > 0) {
@@ -296,14 +324,194 @@ export default function ChantierDetail() {
         };
         
       } catch (error) {
-        console.error('Erreur lors de l\'export PDF pour la qualité:', q.name, error);
+        console.error('Erreur lors de l\'export PDF pour la qualité:', qg.name, error);
       }
     }
   }
 
+  async function onExportLocationPlans() {
+    if (!data) return;
+    
+    // Pour chaque quality group, vérifier s'il y a des points GPS
+    for (let i = 0; i < (data.qualityGroups || []).length; i++) {
+      const qg = data.qualityGroups![i];
+      try {
+        const gpsPoints = await fetchGPSPoints(data.id, qg.id);
+        
+        // Si pas de points GPS, passer au suivant
+        if (gpsPoints.length === 0) {
+          continue;
+        }
+        
+        // Générer le plan de localisation pour ce quality group
+        const html = generateLocationPlanHTML(data, qg, gpsPoints);
+        const blob = new Blob([html], { type: 'text/html' });
+        const url = URL.createObjectURL(blob);
+        
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = `plan-localisation-${qg.essences.map(e => e.name).join('-')}-${qg.qualite.name}-${qg.scieur.name}.html`;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        URL.revokeObjectURL(url);
+        
+        // Attendre un peu entre chaque téléchargement
+        await new Promise(resolve => setTimeout(resolve, 500));
+        
+      } catch (error) {
+        console.error('Erreur lors de l\'export du plan de localisation pour:', qg.name, error);
+      }
+    }
+  }
+
+  function generateLocationPlanHTML(chantier: ChantierDetail, qg: any, gpsPoints: any[]) {
+    const qualityGroupName = `${qg.essences.map((e: any) => e.name).join(' + ')} ${qg.qualite.name} ${qg.scieur.name}`;
+    const qualityGroupNameFormatted = `<strong>${qg.essences.map((e: any) => e.name).join(' + ')}</strong> <strong>${qg.qualite.name}</strong> <strong>${qg.scieur.name}</strong>`;
+
+    // Récupérer les informations du chantier
+    const property = chantier.property;
+    const client = chantier.client;
+    
+    // Récupérer les informations de lot et convention
+    const lotConvention = qg.lotConventions ? qg.lotConventions[0] : null;
+    
+    // Construire les informations à afficher
+    let propertyInfo = '';
+    if (property) {
+      const sections = [];
+      
+      // Titre plus gros
+      sections.push(`<span class="info-title">Coupe n° ${chantier.numeroCoupe}</span>`);
+      
+      if (client) {
+        sections.push(`<span class="info-label">Client</span> : ${client.firstName} ${client.lastName}`);
+      }
+      
+      if (property.commune) {
+        sections.push(`<span class="info-label">Commune</span> : ${property.commune}`);
+      }
+      
+      if (property.lieuDit) {
+        sections.push(`<span class="info-label">Lieu-dit</span> : ${property.lieuDit}`);
+      }
+      
+      if (property.section || property.parcelle) {
+        const sectionParcelle = [];
+        if (property.section) sectionParcelle.push(`<span class="info-bold">Section</span> : ${property.section.toUpperCase()}`);
+        if (property.parcelle) sectionParcelle.push(`<span class="info-bold">Parcelle</span> : ${property.parcelle}`);
+        sections.push(sectionParcelle.join(' • '));
+      }
+      
+      if (property.surfaceCadastrale) {
+        sections.push(`<span class="info-label">Surface cadastrale</span> : ${Number(property.surfaceCadastrale).toFixed(3)}m²`);
+      }
+      
+      sections.push(qualityGroupNameFormatted);
+      
+      if (lotConvention) {
+        sections.push(`<span class="info-bold">Lot</span> : ${lotConvention.lot} • <span class="info-bold">Convention</span> : ${lotConvention.convention}`);
+      }
+      
+      // Ajouter les points GPS à la suite
+      if (gpsPoints && gpsPoints.length > 0) {
+        gpsPoints.forEach((point, index) => {
+          sections.push(`
+            <div style="margin-top: 0px; text-align: center;">
+              <span style="font-size: 20px;">📍</span>
+              <a href="https://www.google.com/maps?q=${point.latitude},${point.longitude}" target="_blank" style="color: #2563eb; text-decoration: none; font-size: 14px; margin-left: 5px;">
+                ${point.latitude.toFixed(6)}, ${point.longitude.toFixed(6)}
+              </a>
+              ${point.notes ? `<div style="margin-top: 3px; font-size: 13px; color: #555;">${point.notes}</div>` : ''}
+            </div>
+          `);
+        });
+      }
+      
+      // Séparer les sections texte des sections HTML
+      const textSections = [];
+      const htmlSections = [];
+      
+      for (const section of sections) {
+        if (section.trim().startsWith('<div')) {
+          htmlSections.push(section);
+        } else {
+          textSections.push(section);
+        }
+      }
+      
+      // Joindre les sections texte avec <br>, puis ajouter les sections HTML directement
+      propertyInfo = textSections.join('<br>') + (htmlSections.length > 0 ? '<br>' + htmlSections.join('') : '');
+    }
+
+    return `
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Plan de Localisation - ${qualityGroupName}</title>
+    <style>
+        * { box-sizing: border-box; }
+        body { 
+            font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, sans-serif; 
+            margin: 0;
+            padding: 20px;
+            background: #f5f5f5;
+        }
+        .container {
+            background: white;
+            padding: 30px;
+            max-width: 800px;
+            margin: 0 auto;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        h1 {
+            font-size: 24px;
+            margin: 0 0 20px;
+            color: #333;
+            text-align: center;
+        }
+        .info-section {
+            margin-bottom: 30px;
+            padding: 30px;
+            background: #f9fafb;
+            border: 1px solid #e5e7eb;
+            border-radius: 8px;
+            text-align: center;
+            font-size: 14px;
+            line-height: 2.2;
+        }
+        .info-title {
+            font-size: 20px;
+            font-weight: 700;
+            color: #111;
+            margin-bottom: 0px;
+            display: block;
+        }
+        .info-label {
+            font-weight: 600;
+            color: #111;
+        }
+        .info-bold {
+            font-weight: 600;
+            color: #111;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Plan de Localisation</h1>
+        
+        ${propertyInfo ? `<div class="info-section">${propertyInfo}</div>` : ''}
+    </div>
+</body>
+</html>`;
+  }
+
   function buildExportHtmlWithPageNumbers(
     chantier: ChantierDetail,
-    qualite: NonNullable<typeof activeQualite>,
+    qualite: NonNullable<typeof activeQualityGroup>,
     stats: SaisieStats | null,
     rows: SaisieRow[],
   ) {
@@ -319,7 +527,7 @@ export default function ChantierDetail() {
     const head = `
       <meta charset="utf-8" />
       <meta name="viewport" content="width=device-width, initial-scale=1" />
-      <title>Lot ${chantier.referenceLot} — ${qualite.essence.name} ${qualite.name}</title>
+      <title>Coupe n° ${chantier.numeroCoupe} — ${qualite.essences.map(e => e.name).join(' + ')} ${qualite.qualite.name}</title>
       <style>
         * { box-sizing: border-box; }
         body { 
@@ -331,6 +539,7 @@ export default function ChantierDetail() {
         .title-wrap { display:flex; align-items:center; justify-content:center; text-align:center; }
         h1 { font-size: 22px; margin: 0 0 4px; font-weight: 600; }
         h2 { font-size: 16px; margin: 12px 0 8px; text-align: center; font-weight: 600; }
+        .quality-title { font-size: 14px; margin: 8px 0 6px; text-align: center; font-weight: 500; }
         .muted { color: #6b7280; font-size: 12px; text-align: center; }
         .small { font-size: 11px; }
         table { width: 100%; border-collapse: collapse; }
@@ -373,19 +582,30 @@ export default function ChantierDetail() {
     })()
   : "—";
   
+    const clientName = chantier.client ? `${chantier.client.firstName} ${chantier.client.lastName}` : "—";
+    const commune = chantier.property?.commune || "—";
+    const lieuDit = chantier.property?.lieuDit || null;
+    const section = chantier.property?.section || "—";
+    const parcelle = chantier.property?.parcelle || "—";
+    const surfaceCad = chantier.property?.surfaceCadastrale 
+      ? chantier.property.surfaceCadastrale.toLocaleString("fr-FR", { minimumFractionDigits: 3, maximumFractionDigits: 3 })
+      : "—";
+  
     const info = `
       <section class="mb-3 no-break">
-        <div class="title-wrap"><h1>Lot ${chantier.referenceLot}</h1></div>
-        <div class="muted mb-2 small">${chantier.proprietaire} — ${chantier.commune}${chantier.lieuDit ? ` (${chantier.lieuDit})` : ""}</div>
-        <div class="muted small"><strong>Convention:</strong> ${chantier.convention} • <strong>Section:</strong> ${chantier.section ?? "—"} • <strong>Parcelle:</strong> ${chantier.parcel ?? "—"}</div>
-        <div class="muted small"><strong>Date de création:</strong> ${createdAtText}</div>
+        <div class="title-wrap"><h1>Coupe n° ${chantier.numeroCoupe}</h1></div>
+        <div class="muted mb-2"><strong>Client :</strong> ${clientName}</div>
+        <div class="muted mb-2"><strong>Commune :</strong> ${commune}${lieuDit ? ` • <strong>Lieu-dit :</strong> ${lieuDit}` : ""}</div>
+        <div class="muted mb-2"><strong>Section :</strong> ${section} • <strong>Parcelle :</strong> ${parcelle}</div>
+        <div class="muted mb-2"><strong>Surface cadastrale :</strong> ${surfaceCad}m²</div>
       </section>
     `;
   
     const qual = `
       <section class="mb-2">
-        <h2>${qualite.essence.name} — ${qualite.name}</h2>
-        <div class="muted">% écorce: ${qualite.pourcentageEcorce ?? 0}%</div>
+        <div class="quality-title">${qualite.essences.map(e => e.name).join(' ')} ${qualite.qualite.name} ${qualite.scieur.name}</div>
+        <div class="muted small"><strong>Lot :</strong> ${(qualite as any).lotConventions?.[0]?.lot || "—"} • <strong>Convention :</strong> ${(qualite as any).lotConventions?.[0]?.convention || "—"}</div>
+        <div class="muted small"><strong>Seuils :</strong> V1 = 0,250 m³ • V2 = 0,500 m³ • % écorce : ${qualite.pourcentageEcorce ?? 0}%</div>
       </section>
     `;
   
@@ -448,7 +668,7 @@ export default function ChantierDetail() {
 
   function buildExportHtml(
     chantier: ChantierDetail,
-    qualite: NonNullable<typeof activeQualite>,
+    qualite: NonNullable<typeof activeQualityGroup>,
     stats: SaisieStats | null,
     rows: SaisieRow[],
   ) {
@@ -464,13 +684,14 @@ export default function ChantierDetail() {
     const head = `
       <meta charset="utf-8" />
       <meta name="viewport" content="width=device-width, initial-scale=1" />
-      <title>Lot ${chantier.referenceLot} — ${qualite.essence.name} ${qualite.name}</title>
+      <title>Coupe n° ${chantier.numeroCoupe} — ${qualite.essences.map(e => e.name).join(' + ')} ${qualite.qualite.name}</title>
       <style>
         * { box-sizing: border-box; }
         body { font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, sans-serif; color: #111; margin: 24px; }
         .title-wrap { display:flex; align-items:center; justify-content:center; text-align:center; }
         h1 { font-size: 22px; margin: 0 0 4px; font-weight: 600; }
         h2 { font-size: 16px; margin: 12px 0 8px; text-align: center; font-weight: 600; }
+        .quality-title { font-size: 14px; margin: 8px 0 6px; text-align: center; font-weight: 500; }
         .muted { color: #6b7280; font-size: 12px; text-align: center; }
         .small { font-size: 11px; }
         table { width: 100%; border-collapse: collapse; }
@@ -518,17 +739,17 @@ export default function ChantierDetail() {
   
     const info = `
       <section class="mb-3 no-break">
-        <div class="title-wrap"><h1>Lot ${chantier.referenceLot}</h1></div>
-        <div class="muted mb-2 small">${chantier.proprietaire} — ${chantier.commune}${chantier.lieuDit ? ` (${chantier.lieuDit})` : ""}</div>
-        <div class="muted small"><strong>Convention:</strong> ${chantier.convention} • <strong>Section:</strong> ${chantier.section ?? "—"} • <strong>Parcelle:</strong> ${chantier.parcel ?? "—"}</div>
-        <div class="muted small"><strong>Date de création:</strong> ${createdAtText}</div>
+        <div class="title-wrap"><h1>Coupe n° ${chantier.numeroCoupe}</h1></div>
+        <div class="muted mb-2 small">${chantier.client ? `${chantier.client.firstName} ${chantier.client.lastName}` : "Aucun client"} — ${chantier.client?.city || "—"}</div>
+        <div class="muted small"><strong>Section :</strong> ${chantier.section ?? "—"} • <strong>Parcelle :</strong> ${chantier.parcel ?? "—"}</div>
       </section>
     `;
   
     const qual = `
       <section class="mb-2">
-        <h2>${qualite.essence.name} — ${qualite.name}</h2>
-        <div class="muted">% écorce: ${qualite.pourcentageEcorce ?? 0}%</div>
+        <div class="quality-title">${qualite.essences.map(e => e.name).join(' ')} ${qualite.qualite.name} ${qualite.scieur.name}</div>
+        <div class="muted small"><strong>Lot :</strong> ${(qualite as any).lotConventions?.[0]?.lot || "—"} • <strong>Convention :</strong> ${(qualite as any).lotConventions?.[0]?.convention || "—"}</div>
+        <div class="muted small">Seuils : V1 = 0,250 m³ • V2 = 0,500 m³ • % écorce : ${qualite.pourcentageEcorce ?? 0}%</div>
       </section>
     `;
   
@@ -598,33 +819,53 @@ export default function ChantierDetail() {
       .replace(/'/g, "&#039;");
   }
   return (
-    <div className="max-w-[1200px] mx-auto px-4 lg:px-6 py-8 space-y-8">
+    <div className="max-w-[1200px] mx-auto px-4 lg:px-6 py-8 space-y-8 pb-[50px]">
       {/* Bouton retour mobile — juste sous la navbar */}
-      <MobileBack fallback="/chantiers" variant="fixed" />
+      <MobileBack fallback="/chantiers" variant="fixed" className="md:block" />
 
       {/* Header centré */}
       <header className="text-center space-y-1">
         <h1 className="text-2xl lg:text-3xl font-semibold tracking-tight">
-          Lot {data.referenceLot}
+          Coupe n° {data.numeroCoupe}
         </h1>
-        <p className="text-sm text-gray-500">
-          {data.proprietaire} — {data.commune}
-          {data.lieuDit ? ` (${data.lieuDit})` : ""}
-        </p>
-        <p className="text-xs text-gray-400">
-          Convention : {data.convention}
-          {(data.section || data.parcel) && (
-            <>
-              {" • "}Section : <strong>{data.section ?? "—"}</strong>
-              {" • "}Parcelle : <strong>{data.parcel ?? "—"}</strong>
-            </>
-          )}
-        </p>
+        {data.client && (
+          <p className="text-sm text-gray-500">
+            Client : <strong>{data.client.firstName} {data.client.lastName}</strong>
+          </p>
+        )}
+        {data.property && (
+          <div className="text-xs text-gray-500 space-y-0.5">
+            {data.property.commune && <p>Commune : <strong>{data.property.commune}</strong></p>}
+            {data.property.lieuDit && <p>Lieu-dit : <strong>{data.property.lieuDit}</strong></p>}
+            {(data.property.section || data.property.parcelle) && (
+              <p>
+                {data.property.section && <>Section : <strong>{data.property.section}</strong></>}
+                {(data.property.section && data.property.parcelle) && " • "}
+                {data.property.parcelle && <>Parcelle : <strong>{data.property.parcelle}</strong></>}
+              </p>
+            )}
+            {data.property.surfaceCadastrale && (
+              <p>Surface cadastrale : <strong>{data.property.surfaceCadastrale}m²</strong></p>
+            )}
+          </div>
+        )}
       </header>
 
-      {/* Export PDF (desktop) */}
-      {getUser()?.role === "SUPERVISEUR" && (     
-     <div className="hidden lg:flex justify-center">
+      {/* Export PDF et Fiche chantier (desktop uniquement pour superviseurs) */}
+      {(() => {
+        const user = getUser();
+        const isSupervisor = isSuperviseur(user);
+        return isSupervisor;
+      })() && (     
+     <div className="hidden md:flex justify-center gap-2 mb-2.5">
+       <Link
+         to={`/chantiers/${id}/fiche`}
+         className="inline-flex items-center justify-center rounded-full px-2 py-2 text-sm shadow-[0_8px_20px_rgba(0,0,0,0.12)] active:scale-[0.98] transition hover:opacity-90"
+         aria-label="Voir la fiche chantier"
+         title="Voir la fiche chantier"
+       >
+         <FileText className="h-5 w-5 text-blue-600" />
+       </Link>
        <button
          onClick={onExportAllPdfs}
          className="inline-flex items-center justify-center rounded-full text-red-600 px-2 py-2 text-sm shadow-[0_8px_20px_rgba(0,0,0,0.12)] active:scale-[0.98] transition"
@@ -645,30 +886,30 @@ export default function ChantierDetail() {
 
 
       {/* Tableau superviseur: volumes par bûcheron et par (essence, qualité) */}
-      {getUser()?.role === "SUPERVISEUR" && perUserTotals && (
-        <div className="hidden lg:block max-w-[1100px] mx-auto">
+      {isSuperviseur(getUser()) && (
+        <div className="max-w-[1100px] mx-auto">
           <div className="overflow-x-auto bg-white rounded-xl border shadow-sm">
             <table className="w-full text-sm table-fixed">
               <colgroup>
                 <col key="header" className="w-[22%]" />
-                {perUserTotals.columns.map((c) => (
+                {perUserTotals?.columns.map((c) => (
                   <col key={c.key} className="w-[19.5%]" />
-                ))}
+                )) || []}
                 <col key="total" className="w-[19.5%]" />
               </colgroup>
               <thead className="bg-gray-50">
                 <tr className="text-center">
                   <th className="px-3 py-2 border-b border-gray-200 text-left text-gray-600 font-medium">Bûcheron</th>
-                  {perUserTotals.columns.map((c) => (
+                  {perUserTotals?.columns.map((c) => (
                     <th key={c.key} className="px-3 py-2 border-b border-gray-200 text-gray-600 font-medium">
                       {c.label}
                     </th>
-                  ))}
+                  )) || []}
                   <th className="px-3 py-2 border-b border-gray-200 text-gray-600 font-medium">Total</th>
                 </tr>
               </thead>
               <tbody>
-                {perUserTotals.users.map((u) => (
+                {perUserTotals?.users.map((u) => (
                   <tr key={u.user.id} className="text-center">
                     <td className="px-3 py-2 border-b border-gray-200 text-left">
                       {u.user.firstName} {u.user.lastName}
@@ -683,20 +924,22 @@ export default function ChantierDetail() {
                     </td>
                   </tr>
                 ))}
-                <tr className="text-center bg-gray-50/60">
-                  <td className="px-3 py-2 border-t border-gray-200 text-left font-medium">Total</td>
-                  {perUserTotals.columns.map((c) => {
-                    const sum = perUserTotals.users.reduce((acc, u) => acc + (u.values[c.key] ?? 0), 0);
-                    return (
-                      <td key={c.key} className="px-3 py-2 border-t border-gray-200 tabular-nums font-medium">
-                        {sum.toLocaleString("fr-FR", { minimumFractionDigits: 3, maximumFractionDigits: 3 })} m³
-                      </td>
-                    );
-                  })}
-                  <td className="px-3 py-2 border-t border-gray-200 tabular-nums font-semibold">
-                    {perUserTotals.grandTotal.toLocaleString("fr-FR", { minimumFractionDigits: 3, maximumFractionDigits: 3 })} m³
-                  </td>
-                </tr>
+                {perUserTotals && (
+                  <tr className="text-center bg-gray-50/60">
+                    <td className="px-3 py-2 border-t border-gray-200 text-left font-medium">Total</td>
+                    {perUserTotals.columns.map((c) => {
+                      const sum = perUserTotals.users.reduce((acc, u) => acc + (u.values[c.key] ?? 0), 0);
+                      return (
+                        <td key={c.key} className="px-3 py-2 border-t border-gray-200 tabular-nums font-medium">
+                          {sum.toLocaleString("fr-FR", { minimumFractionDigits: 3, maximumFractionDigits: 3 })} m³
+                        </td>
+                      );
+                    })}
+                    <td className="px-3 py-2 border-t border-gray-200 tabular-nums font-semibold">
+                      {perUserTotals.grandTotal.toLocaleString("fr-FR", { minimumFractionDigits: 3, maximumFractionDigits: 3 })} m³
+                    </td>
+                  </tr>
+                )}
               </tbody>
             </table>
           </div>
@@ -715,8 +958,91 @@ export default function ChantierDetail() {
         />
       </div>
 
-      {/* Seuils + toggle mobile */}
+      {/* Boutons GPS (desktop) */}
+      {isSuperviseur(getUser()) && activeQualityGroup && (
+        <div className="hidden lg:flex justify-center mb-3">
+          <button
+            onClick={() => {
+              const buttonName = `gpsAddButton_gps_${activeQualityGroup.id}`;
+              if ((window as any)[buttonName]) {
+                (window as any)[buttonName]();
+              }
+            }}
+            className="inline-flex items-center justify-center rounded-full px-2 py-2 text-sm shadow-[0_8px_20px_rgba(0,0,0,0.12)] active:scale-[0.98] transition"
+            aria-label="Ajouter un point GPS"
+            title="Ajouter un point GPS"
+          >
+            {/* Icône Google Maps multicolore */}
+            <svg viewBox="0 0 24 24" className="h-5 w-5" xmlns="http://www.w3.org/2000/svg">
+              {/* Forme du marqueur (goutte inversée) */}
+              <path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7z" fill="none"/>
+              {/* Section rouge - haut gauche */}
+              <path d="M12 2L5 9L12 9L12 2Z" fill="#EA4335"/>
+              {/* Section bleue - haut droite */}
+              <path d="M12 2L19 9L12 9L12 2Z" fill="#4285F4"/>
+              {/* Section jaune - bas gauche */}
+              <path d="M5 9L12 9L12 22L5 9Z" fill="#FBBC04"/>
+              {/* Section verte - bas droite */}
+              <path d="M12 9L19 9L12 22L12 9Z" fill="#34A853"/>
+              {/* Cercle central blanc */}
+              <circle cx="12" cy="9" r="2" fill="#FFFFFF"/>
+            </svg>
+          </button>
+          {hasGpsPoints && (
+            <button
+              onClick={async () => {
+                try {
+                  const gpsPoints = await fetchGPSPoints(data.id, activeQualityGroup.id);
+                  if (gpsPoints && gpsPoints.length > 0) {
+                    const html = generateLocationPlanHTML(data, activeQualityGroup, gpsPoints);
+                    const blob = new Blob([html], { type: 'text/html' });
+                    const url = URL.createObjectURL(blob);
+                    const link = document.createElement('a');
+                    link.href = url;
+                    link.download = `plan-localisation-${activeQualityGroup.essences.map(e => e.name).join('-')}-${activeQualityGroup.qualite.name}-${activeQualityGroup.scieur.name}.html`;
+                    document.body.appendChild(link);
+                    link.click();
+                    document.body.removeChild(link);
+                    URL.revokeObjectURL(url);
+                  }
+                } catch (error) {
+                  console.error('Erreur lors de l\'export du plan de localisation:', error);
+                }
+              }}
+              className="inline-flex items-center justify-center rounded-full text-green-600 px-2 py-2 text-sm shadow-[0_8px_20px_rgba(0,0,0,0.12)] active:scale-[0.98] transition"
+              aria-label="Créer un plan de localisation"
+              title="Créer un plan de localisation"
+            >
+              <Map className="h-5 w-5" />
+            </button>
+          )}
+        </div>
+      )}
+
+      {/* Gestionnaire GPS (toujours présent mais visuellement caché sur desktop) */}
+      {isSuperviseur(getUser()) && activeQualityGroup && (
+        <div className="hidden lg:block" data-gps-manager={`gps_${activeQualityGroup.id}`}>
+          <GPSPointsManager 
+            chantierId={data.id}
+            qualityGroupId={activeQualityGroup.id}
+            onPointsCountChange={(count) => {
+              setHasGpsPoints(count > 0);
+            }}
+          />
+        </div>
+      )}
+
+      {/* Lot/Convention + Seuils + toggle mobile */}
       <div className="text-center text-[12px] text-gray-500">
+        {/* Lot et Convention */}
+        {activeQualityGroup && (
+          <div className="mb-2 text-gray-700">
+            <span className="font-medium">Lot :</span> <span className="tabular-nums">{(activeQualityGroup as any).lotConventions?.[0]?.lot || "—"}</span>
+            {" • "}
+            <span className="font-medium">Convention :</span> <span className="tabular-nums">{(activeQualityGroup as any).lotConventions?.[0]?.convention || "—"}</span>
+          </div>
+        )}
+        
         <div className="hidden lg:block">
           Seuils : V1 ={" "}
           <span className="tabular-nums font-semibold">0,250 m³</span> • V2 =
@@ -761,7 +1087,7 @@ export default function ChantierDetail() {
               globalStats={globalStats}
               userStats={userStats}
               todayUser={todayUser ?? undefined}
-              isSupervisor={getUser()?.role === "SUPERVISEUR"}
+              isSupervisor={isSuperviseur(getUser())}
             />
           </div>
           {showStatsMobile && (
@@ -771,7 +1097,7 @@ export default function ChantierDetail() {
                 globalStats={globalStats}
                 userStats={userStats}
                 todayUser={todayUser ?? undefined}
-                isSupervisor={getUser()?.role === "SUPERVISEUR"}
+                isSupervisor={isSuperviseur(getUser())}
               />
             </div>
           )}
@@ -780,8 +1106,8 @@ export default function ChantierDetail() {
         <div className="max-w-[1100px] mx-auto">
           <SaisieTab
             chantierId={data.id}
-            qualiteId={activeQualite.id}
-            ecorcePercent={activeQualite.pourcentageEcorce ?? 0}
+            qualityGroupId={activeQualityGroup.id}
+            ecorcePercent={activeQualityGroup.pourcentageEcorce ?? 0}
             onMutated={onMutated}
           />
         </div>

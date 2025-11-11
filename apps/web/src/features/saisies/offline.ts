@@ -22,34 +22,35 @@ import { getUser } from "../auth/auth";
 // List with online->cache, offline->cache strategy
 export async function listSaisiesOffline(
   chantierId: string,
-  qualiteId: string,
+  qualityGroupId: string,
 ): Promise<SaisieRow[]> {
   if (isOnline()) {
     try {
-      const rows = await httpList(chantierId, qualiteId);
-      await cacheSaisiesList(chantierId, qualiteId, rows);
+      const rows = await httpList(chantierId, qualityGroupId);
+      await cacheSaisiesList(chantierId, qualityGroupId, rows);
       return rows;
     } catch {
       // fallback to cache
     }
   }
-  const cached = await readCachedSaisiesList(chantierId, qualiteId);
+  const cached = await readCachedSaisiesList(chantierId, qualityGroupId);
   return (cached as SaisieRow[] | null) ?? [];
 }
 
 // Create with optimistic local insert + queue when offline
 export async function createSaisieOffline(payload: {
   chantierId: string;
-  qualiteId: string;
+  qualityGroupId: string;
   longueur: number;
   diametre: number;
   annotation?: string | null;
   numero?: number;
+  debardeurId?: string;
 }): Promise<SaisieRow> {
-  const { chantierId, qualiteId } = payload;
+  const { chantierId, qualityGroupId } = payload;
   if (isOnline()) {
     const row = await httpCreate(payload);
-    await upsertCachedSaisie(chantierId, qualiteId, row);
+    await upsertCachedSaisie(chantierId, qualityGroupId, row);
     dispatchSyncEvent();
     return row;
   }
@@ -70,7 +71,7 @@ export async function createSaisieOffline(payload: {
       throw new Error(`Le numéro doit être inférieur ou égal à ${me.numEnd}`);
     }
     
-    const existing = await readCachedSaisiesList(chantierId, qualiteId);
+    const existing = await readCachedSaisiesList(chantierId, qualityGroupId);
     const isDuplicate = existing?.some(r => 
       r.numero === payload.numero && 
       r.user?.id === me.id
@@ -81,7 +82,49 @@ export async function createSaisieOffline(payload: {
     numero = payload.numero;
   } else {
     // Numéro automatique : prendre le dernier + 1
-    numero = await nextLocalNumero(chantierId, qualiteId);
+    numero = await nextLocalNumero(chantierId, qualityGroupId);
+  }
+
+  // Récupérer les informations du débardeur depuis la liste des débardeurs
+  // En mode offline, on essaie de récupérer depuis le localStorage ou la mémoire
+  let debardeur = null;
+  if (payload.debardeurId) {
+    try {
+      // Essayer d'abord depuis localStorage (selectedDebardeur)
+      const storedDebardeur = localStorage.getItem('selectedDebardeur');
+      if (storedDebardeur) {
+        try {
+          const parsed = JSON.parse(storedDebardeur);
+          if (parsed.id === payload.debardeurId) {
+            debardeur = {
+              id: parsed.id,
+              firstName: parsed.firstName,
+              lastName: parsed.lastName,
+            };
+          }
+        } catch (e) {
+          // Ignorer l'erreur de parsing
+        }
+      }
+      
+      // Si pas trouvé dans localStorage, essayer via API (peut fonctionner si on vient de se déconnecter)
+      if (!debardeur) {
+        const { listUsers } = await import("../users/api");
+        const users = await listUsers();
+        const debardeurUser = users.find((u: any) => u.id === payload.debardeurId && u.roles.includes('DEBARDEUR'));
+        if (debardeurUser) {
+          debardeur = {
+            id: debardeurUser.id,
+            firstName: debardeurUser.firstName,
+            lastName: debardeurUser.lastName,
+          };
+        }
+      }
+    } catch (error) {
+      // En mode offline, on peut ne pas avoir les infos du débardeur
+      // On laissera debardeur à null, ce qui signifie qu'il sera affiché mais sans détails
+      console.warn('Impossible de récupérer les informations du débardeur:', error);
+    }
   }
 
   const optimistic: SaisieRow = {
@@ -93,9 +136,10 @@ export async function createSaisieOffline(payload: {
     volumeCalc: 0,
     annotation: payload.annotation ?? null,
     user: getUser() ? { id: getUser()!.id, firstName: getUser()!.firstName, lastName: getUser()!.lastName } : undefined,
+    debardeur: debardeur || null,
   };
-  await upsertCachedSaisie(chantierId, qualiteId, optimistic as any);
-  await enqueueSaisieOp(chantierId, qualiteId, {
+  await upsertCachedSaisie(chantierId, qualityGroupId, optimistic as any);
+  await enqueueSaisieOp(chantierId, qualityGroupId, {
     kind: "create",
     payload: { ...payload, clientTempId: tempId },
   });
@@ -107,16 +151,16 @@ export async function createSaisieOffline(payload: {
 export async function updateSaisieOffline(
   id: string,
   chantierId: string,
-  qualiteId: string,
-  payload: { longueur: number; diametre: number; annotation?: string | null; numero?: number },
+  qualityGroupId: string,
+  payload: { longueur: number; diametre: number; annotation?: string | null; numero?: number; debardeurId?: string },
 ): Promise<SaisieRow> {
   if (isOnline()) {
     const row = await httpUpdate(id, payload);
-    await upsertCachedSaisie(chantierId, qualiteId, row);
+    await upsertCachedSaisie(chantierId, qualityGroupId, row);
     dispatchSyncEvent();
     return row;
   }
-  const existing = (await readCachedSaisie(chantierId, qualiteId, id)) || {};
+  const existing = (await readCachedSaisie(chantierId, qualityGroupId, id)) || {};
   
   // Validation du numéro si fourni
   if (payload.numero !== undefined) {
@@ -131,7 +175,7 @@ export async function updateSaisieOffline(
       throw new Error(`Le numéro doit être inférieur ou égal à ${me.numEnd}`);
     }
     
-    const allRows = await readCachedSaisiesList(chantierId, qualiteId);
+    const allRows = await readCachedSaisiesList(chantierId, qualityGroupId);
     const isDuplicate = allRows?.some(r => 
       r.numero === payload.numero && 
       r.user?.id === me.id &&
@@ -139,6 +183,53 @@ export async function updateSaisieOffline(
     );
     if (isDuplicate) {
       throw new Error(`Le numéro ${payload.numero} est déjà utilisé`);
+    }
+  }
+
+  // Récupérer les informations du débardeur si debardeurId est fourni
+  let debardeur = existing.debardeur || null;
+  if (payload.debardeurId !== undefined) {
+    if (payload.debardeurId) {
+      try {
+        // Essayer d'abord depuis localStorage (selectedDebardeur)
+        const storedDebardeur = localStorage.getItem('selectedDebardeur');
+        if (storedDebardeur) {
+          try {
+            const parsed = JSON.parse(storedDebardeur);
+            if (parsed.id === payload.debardeurId) {
+              debardeur = {
+                id: parsed.id,
+                firstName: parsed.firstName,
+                lastName: parsed.lastName,
+              };
+            }
+          } catch (e) {
+            // Ignorer l'erreur de parsing
+          }
+        }
+        
+        // Si pas trouvé dans localStorage, essayer via API
+        if (!debardeur) {
+          const { listUsers } = await import("../users/api");
+          const users = await listUsers();
+          const debardeurUser = users.find((u: any) => u.id === payload.debardeurId && u.roles.includes('DEBARDEUR'));
+          if (debardeurUser) {
+            debardeur = {
+              id: debardeurUser.id,
+              firstName: debardeurUser.firstName,
+              lastName: debardeurUser.lastName,
+            };
+          } else {
+            debardeur = null;
+          }
+        }
+      } catch (error) {
+        // En mode offline, conserver le débardeur existant si disponible
+        console.warn('Impossible de récupérer les informations du débardeur:', error);
+        debardeur = existing.debardeur || null;
+      }
+    } else {
+      debardeur = null;
     }
   }
 
@@ -151,9 +242,10 @@ export async function updateSaisieOffline(
     longueur: payload.longueur,
     diametre: payload.diametre,
     annotation: payload.annotation ?? null,
+    debardeur,
   };
-  await upsertCachedSaisie(chantierId, qualiteId, optimistic);
-  await enqueueSaisieOp(chantierId, qualiteId, { kind: "update", id, payload });
+  await upsertCachedSaisie(chantierId, qualityGroupId, optimistic);
+  await enqueueSaisieOp(chantierId, qualityGroupId, { kind: "update", id, payload });
   dispatchSyncEvent();
   return optimistic as SaisieRow;
 }
@@ -162,22 +254,22 @@ export async function updateSaisieOffline(
 export async function deleteSaisieOffline(
   id: string,
   chantierId: string,
-  qualiteId: string,
+  qualityGroupId: string,
 ): Promise<{ ok: true }> {
   if (isOnline()) {
     // If it's a temporary client id, do not call server, just remove from cache
     if (id.startsWith("tmp_")) {
-      await removeCachedSaisie(chantierId, qualiteId, id);
+      await removeCachedSaisie(chantierId, qualityGroupId, id);
       dispatchSyncEvent();
       return { ok: true };
     }
     const res = await httpDelete(id);
-    await removeCachedSaisie(chantierId, qualiteId, id);
+    await removeCachedSaisie(chantierId, qualityGroupId, id);
     dispatchSyncEvent();
     return res;
   }
-  await removeCachedSaisie(chantierId, qualiteId, id);
-  await enqueueSaisieOp(chantierId, qualiteId, { kind: "delete", id });
+  await removeCachedSaisie(chantierId, qualityGroupId, id);
+  await enqueueSaisieOp(chantierId, qualityGroupId, { kind: "delete", id });
   dispatchSyncEvent();
   return { ok: true };
 }
@@ -190,7 +282,6 @@ export async function trySyncQueue() {
   // Vérifier qu'on a un token avant de commencer la sync
   const token = localStorage.getItem("auth_token");
   if (!token) {
-    console.log('Sync ignorée: aucun token d\'authentification');
     return;
   }
   
@@ -203,16 +294,15 @@ export async function trySyncQueue() {
           const { clientTempId, ...payload } = (item.op as any).payload || {};
           try {
             const row = await httpCreate(payload);
-            await removeCachedSaisie(item.chantierId, item.qualiteId, clientTempId);
-            await upsertCachedSaisie(item.chantierId, item.qualiteId, row);
+            await removeCachedSaisie(item.chantierId, item.qualityGroupId, clientTempId);
+            await upsertCachedSaisie(item.chantierId, item.qualityGroupId, row);
           } catch (error: any) {
             // Si le numéro est déjà utilisé, créer avec numérotation automatique
             if (error.message.includes('déjà utilisé')) {
-              console.log(`Numéro ${payload.numero} déjà utilisé, création avec numérotation automatique`);
               const { numero, ...payloadWithoutNumero } = payload;
               const row = await httpCreate(payloadWithoutNumero);
-              await removeCachedSaisie(item.chantierId, item.qualiteId, clientTempId);
-              await upsertCachedSaisie(item.chantierId, item.qualiteId, row);
+              await removeCachedSaisie(item.chantierId, item.qualityGroupId, clientTempId);
+              await upsertCachedSaisie(item.chantierId, item.qualityGroupId, row);
             } else {
               throw error; // Re-lancer les autres erreurs
             }
@@ -227,28 +317,27 @@ export async function trySyncQueue() {
             try {
               const row = await httpCreate({
                 chantierId: item.chantierId,
-                qualiteId: item.qualiteId,
+                qualityGroupId: item.qualityGroupId,
                 longueur: payload.longueur,
                 diametre: payload.diametre,
                 annotation: payload.annotation,
                 numero: payload.numero,
               });
-              await removeCachedSaisie(item.chantierId, item.qualiteId, item.op.id);
-              await upsertCachedSaisie(item.chantierId, item.qualiteId, row);
+              await removeCachedSaisie(item.chantierId, item.qualityGroupId, item.op.id);
+              await upsertCachedSaisie(item.chantierId, item.qualityGroupId, row);
             } catch (error: any) {
               // Si le numéro est déjà utilisé, créer avec numérotation automatique
               if (error.message.includes('déjà utilisé')) {
-                console.log(`Numéro ${payload.numero} déjà utilisé, création avec numérotation automatique`);
                 const row = await httpCreate({
                   chantierId: item.chantierId,
-                  qualiteId: item.qualiteId,
+                  qualityGroupId: item.qualityGroupId,
                   longueur: payload.longueur,
                   diametre: payload.diametre,
                   annotation: payload.annotation,
                   // Pas de numero -> numérotation automatique
                 });
-                await removeCachedSaisie(item.chantierId, item.qualiteId, item.op.id);
-                await upsertCachedSaisie(item.chantierId, item.qualiteId, row);
+                await removeCachedSaisie(item.chantierId, item.qualityGroupId, item.op.id);
+                await upsertCachedSaisie(item.chantierId, item.qualityGroupId, row);
               } else {
                 throw error; // Re-lancer les autres erreurs
               }
@@ -256,16 +345,16 @@ export async function trySyncQueue() {
           } else {
             // C'est un élément existant, on peut le mettre à jour
             const row = await httpUpdate(item.op.id, (item.op as any).payload);
-            await upsertCachedSaisie(item.chantierId, item.qualiteId, row);
+            await upsertCachedSaisie(item.chantierId, item.qualityGroupId, row);
           }
         } else if (item.op.kind === "delete") {
           // Si c'est un ID temporaire, on peut juste le supprimer du cache local
           if (item.op.id.startsWith('tmp_')) {
-            await removeCachedSaisie(item.chantierId, item.qualiteId, item.op.id);
+            await removeCachedSaisie(item.chantierId, item.qualityGroupId, item.op.id);
           } else {
             // C'est un élément existant, on peut le supprimer du serveur
             await httpDelete(item.op.id);
-            await removeCachedSaisie(item.chantierId, item.qualiteId, item.op.id);
+            await removeCachedSaisie(item.chantierId, item.qualityGroupId, item.op.id);
           }
         }
         await clearQueueItem(item.id!);
@@ -275,11 +364,9 @@ export async function trySyncQueue() {
             error?.message?.includes('401') || 
             error?.message?.includes('Token manquant') ||
             error?.message?.includes('Token expiré')) {
-          console.log('Sync arrêtée: problème d\'authentification - reconnexion nécessaire');
           break;
         }
         // Pour les autres erreurs, continuer avec l'item suivant
-        console.log('Erreur sync item:', error);
         continue;
       }
     }
@@ -289,8 +376,8 @@ export async function trySyncQueue() {
   }
 }
 
-async function nextLocalNumero(chantierId: string, qualiteId: string) {
-  const rows = ((await readCachedSaisiesList(chantierId, qualiteId)) || []) as {
+async function nextLocalNumero(chantierId: string, qualityGroupId: string) {
+  const rows = ((await readCachedSaisiesList(chantierId, qualityGroupId)) || []) as {
     numero?: number;
     user?: { id: string };
   }[];
@@ -321,12 +408,12 @@ let syncing = false;
 // Compute basic stats from cached rows when offline
 export async function getSaisiesStatsOffline(
   chantierId: string,
-  qualiteId: string,
+  qualityGroupId: string,
   ecorcePercent?: number,
 ): Promise<SaisieStats> {
   const rows = ((await readCachedSaisiesList(
     chantierId,
-    qualiteId,
+    qualityGroupId,
   )) || []) as SaisieRow[];
 
   let ltV1Sum = 0,

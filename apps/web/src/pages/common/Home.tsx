@@ -1,11 +1,13 @@
 import { Link, Navigate } from "react-router-dom";
+import { useState } from "react";
 import { getUser } from "../../features/auth/auth";
 
 export default function Home() {
   const u = getUser();
+  const [showParams, setShowParams] = useState(false);
 
   // Protection : seuls les superviseurs voient Home
-  if (!u || u.role !== "SUPERVISEUR") {
+  if (!u || !u.roles.includes("SUPERVISEUR")) {
     return <Navigate to="/chantiers" replace />;
   }
 
@@ -20,23 +22,50 @@ export default function Home() {
               Tableau de bord
             </h1>
             <p className="text-sm text-gray-600">
-              Accédez à vos chantiers et à la gestion des utilisateurs.
+              {!showParams 
+                ? "Gérez vos chantiers et accédez aux paramètres."
+                : "Gérez les utilisateurs et les clients."}
             </p>
           </div>
 
-          <div className="pt-2 flex items-center justify-center gap-3">
-            <Link
-              to="/chantiers"
-              className="inline-flex items-center justify-center rounded-full bg-black text-white px-5 py-2 text-sm"
-            >
-              Chantiers
-            </Link>
-            <Link
-              to="/utilisateurs" 
-              className="inline-flex items-center justify-center rounded-full border border-gray-300 px-5 py-2 text-sm hover:bg-gray-50"
-            >
-              Utilisateurs
-            </Link>
+          <div className="pt-2 flex items-center justify-center gap-3 flex-wrap">
+            {!showParams ? (
+              <>
+                <Link
+                  to="/chantiers"
+                  className="inline-flex items-center justify-center rounded-full bg-black text-white px-5 py-2.5 text-sm h-[36px] min-w-[120px]"
+                >
+                  Chantiers
+                </Link>
+                <button
+                  onClick={() => setShowParams(true)}
+                  className="inline-flex items-center justify-center rounded-full bg-black text-white px-5 py-2.5 text-sm h-[36px] min-w-[120px]"
+                >
+                  Paramètres
+                </button>
+              </>
+            ) : (
+              <>
+                <button
+                  onClick={() => setShowParams(false)}
+                  className="inline-flex items-center justify-center rounded-full bg-white border border-gray-300 text-black w-[36px] h-[36px] text-sm"
+                >
+                  ←
+                </button>
+                <Link
+                  to="/utilisateurs"
+                  className="inline-flex items-center justify-center rounded-full bg-black text-white px-5 py-2.5 text-sm h-[36px] min-w-[120px]"
+                >
+                  Utilisateurs
+                </Link>
+                <Link
+                  to="/clients"
+                  className="inline-flex items-center justify-center rounded-full bg-black text-white px-5 py-2.5 text-sm h-[36px] min-w-[120px]"
+                >
+                  Clients
+                </Link>
+              </>
+            )}
           </div>
         </div>
       </div>

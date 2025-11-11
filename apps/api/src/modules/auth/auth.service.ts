@@ -14,7 +14,7 @@ export async function validateUser(email: string, password: string) {
     lastName: string;
     email: string;
     phone: string;
-    role: string;
+    roles: string[];
     numStart: number;
     numEnd: number;
     createdAt: Date;

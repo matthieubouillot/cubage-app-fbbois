@@ -27,7 +27,7 @@ export default function Navbar() {
     }
   };
 
-  const homeHref = u?.role === "SUPERVISEUR" ? "/home" : "/chantiers";
+  const homeHref = u?.roles.includes("SUPERVISEUR") ? "/home" : "/chantiers";
 
   return (
     <nav className="w-full border-b bg-white shadow-sm fixed top-0 left-0 right-0 z-50">
@@ -72,7 +72,7 @@ export default function Navbar() {
                 {u.firstName} {u.lastName}
               </span>
               <span className="text-xs text-gray-500 italic">
-                {u.role === "SUPERVISEUR" ? "Superviseur" : "Bûcheron"}
+                {u.roles.includes("SUPERVISEUR") ? "Superviseur" : u.roles.includes("DEBARDEUR") ? "Débardeur" : "Bûcheron"}
               </span>
             </div>
           )}

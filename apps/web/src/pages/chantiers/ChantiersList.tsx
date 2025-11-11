@@ -31,7 +31,7 @@ export default function ChantiersList() {
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const nav = useNavigate();
   const u = getUser();
-  const isSupervisor = u?.role === "SUPERVISEUR";
+  const isSupervisor = u?.roles.includes("SUPERVISEUR");
   const [offline, setOffline] = useState<boolean>(
     typeof navigator !== "undefined" ? !navigator.onLine : false,
   );
@@ -80,7 +80,7 @@ export default function ChantiersList() {
     <div className="px-4 py-6">
       <div className="max-w-7xl mx-auto space-y-6">
         {isSupervisor && !offline && (
-          <MobileBack fallback="/home" variant="fixed" className="md:hidden" />
+          <MobileBack fallback="/home" variant="fixed" className="md:block" />
         )}
 
         {/* Header */}
@@ -120,12 +120,16 @@ export default function ChantiersList() {
           )}
 
           {rows?.map((r) => {
-            const owner =
-              (r.proprietaireFirstName ? r.proprietaireFirstName + " " : "") +
-              r.proprietaire;
-            const localisation = r.lieuDit
-              ? `${r.commune} (${r.lieuDit})`
-              : r.commune;
+            const client = r.client
+              ? `${r.client.firstName} ${r.client.lastName}`
+              : 'N/A';
+            
+            // Afficher la propriété : "Commune (Lieu-dit)" ou "Commune"
+            const propertyDisplay = r.property 
+              ? (r.property.lieuDit 
+                  ? `${r.property.commune} (${r.property.lieuDit})`
+                  : r.property.commune || 'N/A')
+              : 'N/A';
 
             return (
               <div
@@ -134,26 +138,26 @@ export default function ChantiersList() {
               >
                 <div className="mx-auto max-w-[320px] text-center">
                   <div className="space-y-1">
-                    <div className="text-[11px] uppercase tracking-wide text-gray-500">
-                      Référence du lot
-                    </div>
-                    <div className="font-semibold text-base">
-                      {r.referenceLot}
-                    </div>
+                  <div className="text-[11px] uppercase tracking-wide text-gray-500">
+                    Coupe n°
+                  </div>
+                  <div className="font-semibold text-base">
+                    {r.numeroCoupe}
+                  </div>
                   </div>
 
                   <div className="mt-3 space-y-1">
                     <div className="text-[11px] uppercase tracking-wide text-gray-500">
-                      Propriétaire
+                      Client
                     </div>
-                    <div className="font-medium">{owner}</div>
+                    <div className="font-medium">{client}</div>
                   </div>
 
                   <div className="mt-3 space-y-1">
                     <div className="text-[11px] uppercase tracking-wide text-gray-500">
-                      Localisation
+                      Propriété
                     </div>
-                    <div className="font-medium">{localisation}</div>
+                    <div className="font-medium">{propertyDisplay}</div>
                   </div>
 
                   {isSupervisor && !offline && (
@@ -229,30 +233,32 @@ export default function ChantiersList() {
            <table className="w-full text-sm text-center table-fixed rounded-t-2xl overflow-hidden">
              <thead className="bg-gray-50">
                <tr>
-                 <Th>Référence</Th>
-                 <Th>Convention</Th>
-                 <Th>Propriétaire</Th>
-                 <Th>Localisation</Th>
+                 <Th>Coupe n°</Th>
+                 <Th>Client</Th>
+                 <Th>Propriété</Th>
                  {isSupervisor && <Th>Bûcherons</Th>}
-                 <Th>Date</Th>
+                 {isSupervisor && <Th>Date</Th>}
                  <Th>Actions</Th>
                </tr>
              </thead>
              <tbody className="[&>tr:nth-child(odd)]:bg-gray-50/50">
         {rows.map((r) => {
-          const owner =
-            (r.proprietaireFirstName ? r.proprietaireFirstName + " " : "") +
-            r.proprietaire;
-          const localisation = r.lieuDit
-            ? `${r.commune} (${r.lieuDit})`
-            : r.commune;
+          const client = r.client
+            ? `${r.client.firstName} ${r.client.lastName}`
+            : 'N/A';
+          
+          // Afficher la propriété : "Commune (Lieu-dit)" ou "Commune"
+          const propertyDisplay = r.property 
+            ? (r.property.lieuDit 
+                ? `${r.property.commune} (${r.property.lieuDit})`
+                : r.property.commune || 'N/A')
+            : 'N/A';
 
           return (
             <tr key={r.id} className="border-t border-gray-200 text-center">
-              <Td className="align-middle break-words">{r.referenceLot}</Td>
-              <Td className="align-middle break-words">{r.convention}</Td>
-              <Td className="align-middle break-words">{owner}</Td>
-              <Td className="align-middle break-words">{localisation}</Td>
+              <Td className="align-middle break-words">{r.numeroCoupe}</Td>
+              <Td className="align-middle break-words">{client}</Td>
+              <Td className="align-middle break-words">{propertyDisplay}</Td>
 
               {isSupervisor && (
                 <Td className="align-middle">
@@ -271,15 +277,17 @@ export default function ChantiersList() {
                 </Td>
               )}
 
-              <Td className="align-middle whitespace-nowrap">
-                {new Date(r.createdAt).toLocaleString("fr-FR", {
-                  day: "2-digit",
-                  month: "2-digit",
-                  year: "numeric",
-                  hour: "2-digit",
-                  minute: "2-digit",
-                })}
-              </Td>
+              {isSupervisor && (
+                <Td className="align-middle whitespace-nowrap">
+                  {new Date(r.createdAt).toLocaleString("fr-FR", {
+                    day: "2-digit",
+                    month: "2-digit",
+                    year: "numeric",
+                    hour: "2-digit",
+                    minute: "2-digit",
+                  })}
+                </Td>
+              )}
 
               <Td className="align-middle">
                 <div className="flex items-center justify-center gap-2">

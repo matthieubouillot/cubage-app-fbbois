@@ -2,44 +2,119 @@ import { api } from "../../lib/api";
 import { listChantiersOffline, deleteChantierOffline, trySyncChantiersQueue, getChantierOffline } from "./offline";
 
 export type Essence = { id: string; name: string };
-export type Qualite = {
+export type Qualite = { id: string; name: string };
+export type Scieur = { id: string; name: string };
+export type QualityGroup = {
   id: string;
   name: string;
+  category: string;
+  qualiteId: string;
+  scieurId: string;
   pourcentageEcorce: number;
-  essence: Essence;
+  createdAt: string;
+  qualite: Qualite;
+  scieur: Scieur;
+  essences: Essence[];
+  lotConventions: LotConvention[];
+};
+export type LotConvention = {
+  id: string;
+  lot: string;
+  convention: string;
+  qualityGroupId: string;
+  createdAt: string;
+  qualityGroup: QualityGroup;
 };
 export type Bucheron = { id: string; firstName: string; lastName: string };
 
 export type ChantierListItem = {
   id: string;
-  referenceLot: string;
-  convention: string;
-  proprietaire: string;
-  proprietaireFirstName: string ;
-  commune: string;
-  lieuDit: string ;
-  section: string ;
-  parcel: string ;
+  numeroCoupe: string;
+  section: string;
+  parcel: string;
   createdAt: string;
-  essences: { id: string; name: string }[];
-  qualites: { id: string; name: string; essence: { id: string } }[];
+  client: {
+    id: string;
+    firstName: string;
+    lastName: string;
+    email: string;
+    phone: string;
+    street: string;
+    postalCode: string;
+    city: string;
+  } | null;
+  qualityGroups: {
+    id: string;
+    name: string;
+    category: string;
+    pourcentageEcorce: number;
+    qualite: {
+      id: string;
+      name: string;
+    };
+    scieur: {
+      id: string;
+      name: string;
+    };
+    essences: {
+      id: string;
+      name: string;
+    }[];
+  }[];
   bucherons: { id: string; firstName: string; lastName: string }[];
+  debardeurs?: { id: string; firstName: string; lastName: string }[];
 };
 
 export type ChantierDetail = {
   id: string;
-  referenceLot: string;
-  convention: string;
-  proprietaire: string;
-  proprietaireFirstName: string;
-  commune: string;
-  lieuDit: string;
-  section: string ;
+  numeroCoupe: string;
+  section: string;
   parcel: string;
-  essences: Essence[];
-  qualites: Qualite[];
-  bucherons: Bucheron[];
   createdAt: string;
+  client: {
+    id: string;
+    firstName: string;
+    lastName: string;
+    email: string;
+    phone: string;
+    street: string;
+    postalCode: string;
+    city: string;
+  } | null;
+  property: {
+    id: string;
+    commune: string | null;
+    lieuDit: string | null;
+    section: string | null;
+    parcelle: string | null;
+    surfaceCadastrale: number | null;
+  } | null;
+  qualityGroups: {
+    id: string;
+    name: string;
+    category: string;
+    pourcentageEcorce: number;
+    qualite: {
+      id: string;
+      name: string;
+    };
+    scieur: {
+      id: string;
+      name: string;
+    };
+    essences: {
+      id: string;
+      name: string;
+    }[];
+    lotConventions: {
+      id: string;
+      lot: string;
+      convention: string;
+      qualityGroupId: string;
+    }[];
+  }[];
+  bucherons: Bucheron[];
+  debardeurAssignments?: { id: string; firstName: string; lastName: string }[];
 };
 
 export type UpdateChantier = {
@@ -79,4 +154,75 @@ export async function updateChantier(id: string, payload: UpdateChantier) {
 
 export async function syncChantiersOfflineNow() {
   await trySyncChantiersQueue();
+}
+
+// Nouvelles fonctions pour les entités
+export async function getEssences(): Promise<Essence[]> {
+  const res = await api("/essences");
+  return res;
+}
+
+export async function getQualites(): Promise<Qualite[]> {
+  const res = await api("/qualites");
+  return res;
+}
+
+export async function getScieurs(): Promise<Scieur[]> {
+  const res = await api("/scieurs");
+  return res;
+}
+
+export async function getQualityGroups(): Promise<QualityGroup[]> {
+  const res = await api("/quality-groups");
+  return res;
+}
+
+export async function getLotConventionsByQualityGroup(qualityGroupId: string): Promise<LotConvention[]> {
+  const res = await api(`/lot-conventions?qualityGroupId=${qualityGroupId}`);
+  return res;
+}
+
+export async function getChantierById(id: string) {
+  const res = await api(`/chantiers/${id}`);
+  return res;
+}
+
+export async function createChantier(payload: any) {
+  const res = await api("/chantiers", {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+  return res;
+}
+
+export async function getChantiers() {
+  const res = await api("/chantiers");
+  return res;
+}
+
+export type ChantierFicheData = {
+  aFacturerValues: Record<string, { abattage: string; debardage: string }>;
+  fraisGestionValues: Record<string, string>; // Les clés sont des strings dans l'API
+  prixUHT: { aba: string; deb: string };
+};
+
+export async function getChantierFiche(chantierId: string): Promise<ChantierFicheData | null> {
+  try {
+    const res = await api(`/chantiers/${chantierId}/fiche`);
+    return res;
+  } catch (e: any) {
+    // 404 est normal si la fiche n'existe pas encore
+    if (e.message?.includes("404") || e.message?.includes("introuvable") || e.message?.includes("Not Found")) {
+      return null;
+    }
+    throw e;
+  }
+}
+
+export async function saveChantierFiche(chantierId: string, data: ChantierFicheData): Promise<ChantierFicheData> {
+  const res = await api(`/chantiers/${chantierId}/fiche`, {
+    method: "PUT",
+    body: JSON.stringify(data),
+  });
+  return res;
 }

@@ -1,39 +1,48 @@
 import { api } from "../../lib/api";
 
-export type Role = "SUPERVISEUR" | "BUCHERON";
+export type Role = "SUPERVISEUR" | "BUCHERON" | "DEBARDEUR";
 
 export type UserDTO = {
   id: string;
   firstName: string;
   lastName: string;
-  role: Role;
+  roles: Role[];
   email: string;
   phone: string;
   numStart: number;
   numEnd: number;
   createdAt?: string;
+  companyId?: string | null;
+  company?: {
+    id: string;
+    name: string;
+  } | null;
 };
 
 export type CreateUserPayload = {
   firstName: string;
   lastName: string;
-  role: Role;
+  roles: Role[];
   email: string;
   phone: string;
   numStart: number;
   numEnd: number;
   /** mot de passe temporaire OBLIGATOIRE côté UI */
   password: string;
+  companyId?: string | null;
+  companyName?: string; // Si fourni, crée une nouvelle entreprise
 };
 
 export type UpdateUserPayload = {
   firstName: string;
   lastName: string;
-  role: Role;
+  roles: Role[];
   phone: string;
   numStart: number;
   numEnd: number;
   // (email non modifiable ici)
+  companyId?: string | null;
+  companyName?: string; // Si fourni, crée une nouvelle entreprise
 };
 
 export async function listUsers() {

@@ -1,7 +1,7 @@
 import { prisma } from "../../prisma";
 import * as bcrypt from "bcryptjs";
 
-export type Role = "BUCHERON" | "SUPERVISEUR";
+export type Role = "BUCHERON" | "SUPERVISEUR" | "DEBARDEUR";
 
 const NAME_RE = /^[A-Za-zÀ-ÖØ-öø-ÿ' -]{2,}$/;
 const PHONE_RE = /^[0-9+().\s-]{6,20}$/;
@@ -26,17 +26,28 @@ async function hasOverlappingRange(
 /** Liste triée par plage num (numStart puis numEnd). */
 export async function getUsersService(role?: Role) {
   return prisma.user.findMany({
-    where: role ? { role } : undefined,
+    where: role ? { 
+      roles: {
+        has: role
+      }
+    } : undefined,
     select: {
       id: true,
       firstName: true,
       lastName: true,
       email: true,
       phone: true,
-      role: true,
+      roles: true,
       numStart: true,
       numEnd: true,
       createdAt: true,
+      companyId: true,
+      company: {
+        select: {
+          id: true,
+          name: true,
+        },
+      },
     },
     orderBy: [{ numStart: "asc" }, { numEnd: "asc" }],
   });
@@ -51,10 +62,17 @@ export async function getUserByIdService(id: string) {
       lastName: true,
       email: true,
       phone: true,
-      role: true,
+      roles: true,
       numStart: true,
       numEnd: true,
       createdAt: true,
+      companyId: true,
+      company: {
+        select: {
+          id: true,
+          name: true,
+        },
+      },
     },
   });
 }
@@ -63,12 +81,14 @@ export async function getUserByIdService(id: string) {
 export async function createUserService(input: {
   firstName: string;
   lastName: string;
-  role: Role;
+  roles: Role[];
   email: string;
   phone: string;
   numStart: number;
   numEnd: number;
   password: string; // OBLIGATOIRE
+  companyId?: string | null;
+  companyName?: string; // Si fourni, crée une nouvelle entreprise
 }) {
   if (!NAME_RE.test(input.firstName)) throw new Error("Prénom invalide");
   if (!NAME_RE.test(input.lastName)) throw new Error("Nom invalide");
@@ -87,29 +107,71 @@ export async function createUserService(input: {
     throw new Error("Cette plage num. chevauche déjà un autre utilisateur");
   }
 
+  // Gérer l'entreprise
+  let finalCompanyId: string | null = null;
+  
+  if (input.companyName) {
+    // Créer une nouvelle entreprise
+    const trimmedName = input.companyName.trim();
+    if (!trimmedName) {
+      throw new Error("Le nom de l'entreprise est requis");
+    }
+    
+    // Vérifier si une entreprise avec ce nom existe déjà
+    const existing = await prisma.entreprise.findUnique({
+      where: { name: trimmedName },
+    });
+    
+    if (existing) {
+      finalCompanyId = existing.id;
+    } else {
+      const newCompany = await prisma.entreprise.create({
+        data: { name: trimmedName },
+      });
+      finalCompanyId = newCompany.id;
+    }
+  } else if (input.companyId) {
+    // Vérifier que l'entreprise existe
+    const company = await prisma.entreprise.findUnique({
+      where: { id: input.companyId },
+    });
+    if (!company) {
+      throw new Error("Entreprise introuvable");
+    }
+    finalCompanyId = input.companyId;
+  }
+
   const hash = await bcrypt.hash(input.password, 10);
 
   const user = await prisma.user.create({
     data: {
       firstName: input.firstName.trim(),
       lastName: input.lastName.trim(),
-      role: input.role,
+      roles: input.roles,
       email: input.email.toLowerCase().trim(),
       phone: input.phone.trim(),
       password: hash,
       numStart: input.numStart,
       numEnd: input.numEnd,
+      companyId: finalCompanyId,
     },
     select: {
       id: true,
       firstName: true,
       lastName: true,
-      role: true,
+      roles: true,
       email: true,
       phone: true,
       numStart: true,
       numEnd: true,
       createdAt: true,
+      companyId: true,
+      company: {
+        select: {
+          id: true,
+          name: true,
+        },
+      },
     },
   });
 
@@ -122,10 +184,12 @@ export async function updateUserService(
   input: {
     firstName: string;
     lastName: string;
-    role: Role;
+    roles: Role[];
     phone: string;
     numStart: number;
     numEnd: number;
+    companyId?: string | null;
+    companyName?: string; // Si fourni, crée une nouvelle entreprise
   },
 ) {
   if (!NAME_RE.test(input.firstName)) throw new Error("Prénom invalide");
@@ -142,26 +206,79 @@ export async function updateUserService(
     throw new Error("Cette plage num. chevauche déjà un autre utilisateur");
   }
 
+  // Gérer l'entreprise
+  let finalCompanyId: string | null = null;
+  
+  if (input.companyName) {
+    // Créer une nouvelle entreprise
+    const trimmedName = input.companyName.trim();
+    if (!trimmedName) {
+      throw new Error("Le nom de l'entreprise est requis");
+    }
+    
+    // Vérifier si une entreprise avec ce nom existe déjà
+    const existing = await prisma.entreprise.findUnique({
+      where: { name: trimmedName },
+    });
+    
+    if (existing) {
+      finalCompanyId = existing.id;
+    } else {
+      const newCompany = await prisma.entreprise.create({
+        data: { name: trimmedName },
+      });
+      finalCompanyId = newCompany.id;
+    }
+  } else if (input.companyId !== undefined) {
+    if (input.companyId === null) {
+      finalCompanyId = null;
+    } else {
+      // Vérifier que l'entreprise existe
+      const company = await prisma.entreprise.findUnique({
+        where: { id: input.companyId },
+      });
+      if (!company) {
+        throw new Error("Entreprise introuvable");
+      }
+      finalCompanyId = input.companyId;
+    }
+  } else {
+    // Si ni companyId ni companyName ne sont fournis, conserver l'entreprise existante
+    const existing = await prisma.user.findUnique({
+      where: { id },
+      select: { companyId: true },
+    });
+    finalCompanyId = existing?.companyId ?? null;
+  }
+
   const user = await prisma.user.update({
     where: { id },
     data: {
       firstName: input.firstName.trim(),
       lastName: input.lastName.trim(),
-      role: input.role,
+      roles: input.roles,
       phone: input.phone.trim(),
       numStart: input.numStart,
       numEnd: input.numEnd,
+      companyId: finalCompanyId,
     },
     select: {
       id: true,
       firstName: true,
       lastName: true,
-      role: true,
+      roles: true,
       email: true,
       phone: true,
       numStart: true,
       numEnd: true,
       createdAt: true,
+      companyId: true,
+      company: {
+        select: {
+          id: true,
+          name: true,
+        },
+      },
     },
   });
 
@@ -169,6 +286,33 @@ export async function updateUserService(
 }
 
 export async function deleteUserService(id: string) {
+  // Vérifier que l'utilisateur existe
+  const user = await prisma.user.findUnique({
+    where: { id }
+  });
+
+  if (!user) {
+    throw new Error("Utilisateur introuvable");
+  }
+
+  // Supprimer toutes les données liées à l'utilisateur dans l'ordre correct
+  // 1. Supprimer les saisies
+  await prisma.saisie.deleteMany({
+    where: { userId: id }
+  });
+
+  // 2. Supprimer les assignations (bûcherons)
+  await prisma.assignment.deleteMany({
+    where: { userId: id }
+  });
+
+  // 3. Supprimer les tokens de réinitialisation de mot de passe
+  await prisma.passwordResetToken.deleteMany({
+    where: { userId: id }
+  });
+
+  // 4. Enfin, supprimer l'utilisateur lui-même
   await prisma.user.delete({ where: { id } });
+  
   return { ok: true };
 }
