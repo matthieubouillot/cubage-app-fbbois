@@ -16,9 +16,12 @@ export default function LoginPage() {
     setLoading(true);
     try {
       const { token, user } = await loginRequest(email.trim(), password);
+      const roles = Array.isArray((user as any)?.roles)
+        ? (user.roles as ("BUCHERON" | "SUPERVISEUR" | "DEBARDEUR")[])
+        : [];
       setSession(token, user);
       window.location.href =
-        user.roles.includes("SUPERVISEUR") ? "/home" : "/chantiers"; 
+        roles.includes("SUPERVISEUR") ? "/home" : "/chantiers"; 
     } catch (e: any) {
       setErr(e.message || "Identifiants invalides");
     } finally {
