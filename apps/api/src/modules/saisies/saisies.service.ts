@@ -309,7 +309,7 @@ export async function createSaisieService(
  * List
  * ========================= */
 export async function listSaisiesService(
-  auth: { userId: string; role: "BUCHERON" | "SUPERVISEUR" | "DEBARDEUR" },
+  auth: Auth,
   filters: { chantierId: string; qualityGroupId: string },
 ) {
   await assertAccessToChantier(auth, filters.chantierId);
@@ -348,7 +348,7 @@ export async function listSaisiesService(
  * Stats (tableau des totaux)
  * ========================= */
 export async function getSaisiesStatsService(
-  auth: { userId: string; role: "BUCHERON" | "SUPERVISEUR" },
+  auth: Auth,
   filters: { chantierId: string; qualityGroupId: string; global?: boolean },
 ) {
   await assertAccessToChantier(auth, filters.chantierId);

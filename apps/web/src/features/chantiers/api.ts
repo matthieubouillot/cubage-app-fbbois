@@ -43,6 +43,14 @@ export type ChantierListItem = {
     postalCode: string;
     city: string;
   } | null;
+  property: {
+    id: string;
+    commune: string | null;
+    lieuDit: string | null;
+    section: string | null;
+    parcelle: string | null;
+    surfaceCadastrale: number | null;
+  } | null;
   qualityGroups: {
     id: string;
     name: string;
@@ -59,6 +67,12 @@ export type ChantierListItem = {
     essences: {
       id: string;
       name: string;
+    }[];
+    lotConventions: {
+      id: string;
+      lot: string;
+      convention: string;
+      qualityGroupId: string;
     }[];
   }[];
   bucherons: { id: string; firstName: string; lastName: string }[];
@@ -114,6 +128,7 @@ export type ChantierDetail = {
     }[];
   }[];
   bucherons: Bucheron[];
+  debardeurs: { id: string; firstName: string; lastName: string }[];
   debardeurAssignments?: { id: string; firstName: string; lastName: string }[];
 };
 
@@ -158,46 +173,38 @@ export async function syncChantiersOfflineNow() {
 
 // Nouvelles fonctions pour les entités
 export async function getEssences(): Promise<Essence[]> {
-  const res = await api("/essences");
-  return res;
+  return api<Essence[]>("/essences");
 }
 
 export async function getQualites(): Promise<Qualite[]> {
-  const res = await api("/qualites");
-  return res;
+  return api<Qualite[]>("/qualites");
 }
 
 export async function getScieurs(): Promise<Scieur[]> {
-  const res = await api("/scieurs");
-  return res;
+  return api<Scieur[]>("/scieurs");
 }
 
 export async function getQualityGroups(): Promise<QualityGroup[]> {
-  const res = await api("/quality-groups");
-  return res;
+  return api<QualityGroup[]>("/quality-groups");
 }
 
 export async function getLotConventionsByQualityGroup(qualityGroupId: string): Promise<LotConvention[]> {
-  const res = await api(`/lot-conventions?qualityGroupId=${qualityGroupId}`);
-  return res;
+  return api<LotConvention[]>(`/lot-conventions?qualityGroupId=${qualityGroupId}`);
 }
 
 export async function getChantierById(id: string) {
-  const res = await api(`/chantiers/${id}`);
-  return res;
+  return api(`/chantiers/${id}`);
 }
 
 export async function createChantier(payload: any) {
-  const res = await api("/chantiers", {
+  return api("/chantiers", {
     method: "POST",
     body: JSON.stringify(payload),
   });
-  return res;
 }
 
 export async function getChantiers() {
-  const res = await api("/chantiers");
-  return res;
+  return api("/chantiers");
 }
 
 export type ChantierFicheData = {
@@ -208,8 +215,7 @@ export type ChantierFicheData = {
 
 export async function getChantierFiche(chantierId: string): Promise<ChantierFicheData | null> {
   try {
-    const res = await api(`/chantiers/${chantierId}/fiche`);
-    return res;
+    return await api<ChantierFicheData>(`/chantiers/${chantierId}/fiche`);
   } catch (e: any) {
     // 404 est normal si la fiche n'existe pas encore
     if (e.message?.includes("404") || e.message?.includes("introuvable") || e.message?.includes("Not Found")) {
@@ -220,9 +226,8 @@ export async function getChantierFiche(chantierId: string): Promise<ChantierFich
 }
 
 export async function saveChantierFiche(chantierId: string, data: ChantierFicheData): Promise<ChantierFicheData> {
-  const res = await api(`/chantiers/${chantierId}/fiche`, {
+  return api<ChantierFicheData>(`/chantiers/${chantierId}/fiche`, {
     method: "PUT",
     body: JSON.stringify(data),
   });
-  return res;
 }
