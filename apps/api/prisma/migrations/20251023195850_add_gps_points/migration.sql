@@ -1,5 +1,4 @@
--- CreateTable
-CREATE TABLE "public"."GPSPoint" (
+CREATE TABLE IF NOT EXISTS "public"."GPSPoint" (
     "id" TEXT NOT NULL,
     "latitude" DOUBLE PRECISION NOT NULL,
     "longitude" DOUBLE PRECISION NOT NULL,
@@ -13,8 +12,19 @@ CREATE TABLE "public"."GPSPoint" (
     CONSTRAINT "GPSPoint_pkey" PRIMARY KEY ("id")
 );
 
--- CreateIndex
-CREATE INDEX "GPSPoint_chantierId_idx" ON "public"."GPSPoint"("chantierId");
+CREATE INDEX IF NOT EXISTS "GPSPoint_chantierId_idx" ON "public"."GPSPoint"("chantierId");
 
--- AddForeignKey
-ALTER TABLE "public"."GPSPoint" ADD CONSTRAINT "GPSPoint_chantierId_fkey" FOREIGN KEY ("chantierId") REFERENCES "public"."Chantier"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1
+    FROM pg_constraint
+    WHERE conname = 'GPSPoint_chantierId_fkey'
+      AND conrelid = 'public."GPSPoint"'::regclass
+  ) THEN
+    ALTER TABLE "public"."GPSPoint"
+      ADD CONSTRAINT "GPSPoint_chantierId_fkey"
+      FOREIGN KEY ("chantierId") REFERENCES "public"."Chantier"("id")
+      ON DELETE CASCADE ON UPDATE CASCADE;
+  END IF;
+END $$;
