@@ -22,12 +22,6 @@ export interface QualityGroupDTO {
     id: string;
     name: string;
   }[];
-  lotConventions: {
-    id: string;
-    lot: string;
-    convention: string;
-    qualityGroupId: string;
-  }[];
 }
 
 export interface CreateQualityGroupDTO {
@@ -59,7 +53,6 @@ export class QualityGroupsService {
             essence: true
           }
         },
-        lotConventions: true,
       },
       orderBy: { name: 'asc' }
     });
@@ -84,16 +77,6 @@ export class QualityGroupsService {
         id: e.essence.id,
         name: e.essence.name,
       })),
-      lotConventions: group.lotConventions
-        ? [
-            {
-              id: group.lotConventions.id,
-              lot: group.lotConventions.lot,
-              convention: group.lotConventions.convention,
-              qualityGroupId: group.lotConventions.qualityGroupId,
-            },
-          ]
-        : [],
     }));
   }
 
@@ -108,7 +91,6 @@ export class QualityGroupsService {
             essence: true
           }
         },
-        lotConventions: true,
       }
     });
 
@@ -134,16 +116,6 @@ export class QualityGroupsService {
         id: e.essence.id,
         name: e.essence.name
       })),
-      lotConventions: qualityGroup.lotConventions
-        ? [
-            {
-              id: qualityGroup.lotConventions.id,
-              lot: qualityGroup.lotConventions.lot,
-              convention: qualityGroup.lotConventions.convention,
-              qualityGroupId: qualityGroup.lotConventions.qualityGroupId,
-            },
-          ]
-        : [],
     };
   }
 
@@ -169,7 +141,6 @@ export class QualityGroupsService {
             essence: true
           }
         },
-        lotConventions: true,
       }
     });
 
@@ -193,16 +164,6 @@ export class QualityGroupsService {
         id: e.essence.id,
         name: e.essence.name
       })),
-      lotConventions: qualityGroup.lotConventions
-        ? [
-            {
-              id: qualityGroup.lotConventions.id,
-              lot: qualityGroup.lotConventions.lot,
-              convention: qualityGroup.lotConventions.convention,
-              qualityGroupId: qualityGroup.lotConventions.qualityGroupId,
-            },
-          ]
-        : [],
     };
   }
 
@@ -234,7 +195,6 @@ export class QualityGroupsService {
             essence: true
           }
         },
-        lotConventions: true,
       }
     });
 
@@ -258,16 +218,6 @@ export class QualityGroupsService {
         id: e.essence.id,
         name: e.essence.name
       })),
-      lotConventions: qualityGroup.lotConventions
-        ? [
-            {
-              id: qualityGroup.lotConventions.id,
-              lot: qualityGroup.lotConventions.lot,
-              convention: qualityGroup.lotConventions.convention,
-              qualityGroupId: qualityGroup.lotConventions.qualityGroupId,
-            },
-          ]
-        : [],
     };
   }
 

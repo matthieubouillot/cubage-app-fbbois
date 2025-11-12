@@ -50,8 +50,7 @@ export async function listChantiersService(user: {
                   include: {
                     essence: true
                   }
-                },
-                lotConventions: true
+                }
               }
             }
           }
@@ -111,12 +110,8 @@ export async function listChantiersService(user: {
           id: e.essence.id,
           name: e.essence.name
         })),
-        lotConventions: cqg.qualityGroup.lotConventions ? [{
-          id: cqg.qualityGroup.lotConventions.id,
-          lot: cqg.qualityGroup.lotConventions.lot,
-          convention: cqg.qualityGroup.lotConventions.convention,
-          qualityGroupId: cqg.qualityGroup.lotConventions.qualityGroupId
-        }] : []
+        lot: cqg.lot || null,
+        convention: cqg.convention || null
       })),
       bucherons: r.assignments.map(a => ({
         id: a.user.id,
@@ -183,8 +178,7 @@ export async function getChantierByIdService(
                   include: {
                     essence: true
                   }
-                },
-                lotConventions: true
+                }
               }
             }
           }
@@ -246,12 +240,8 @@ export async function getChantierByIdService(
           id: e.essence.id,
           name: e.essence.name
         })),
-        lotConventions: cqg.qualityGroup.lotConventions ? [{
-          id: cqg.qualityGroup.lotConventions.id,
-          lot: cqg.qualityGroup.lotConventions.lot,
-          convention: cqg.qualityGroup.lotConventions.convention,
-          qualityGroupId: cqg.qualityGroup.lotConventions.qualityGroupId
-        }] : []
+        lot: cqg.lot || null,
+        convention: cqg.convention || null
       })),
       bucherons: r.assignments.map(a => ({
         id: a.user.id,
@@ -291,9 +281,15 @@ export async function createChantierService(input: {
         clientId: input.clientId,
         propertyId: input.propertyId,
         qualityGroups: {
-          create: input.qualityGroupIds.map(qualityGroupId => ({
-            qualityGroupId
-          }))
+          create: input.qualityGroupIds.map(qualityGroupId => {
+            // Trouver le lot/convention pour ce quality group si disponible
+            const lotConv = input.lotConventions?.find(lc => lc.qualityGroupId === qualityGroupId);
+            return {
+              qualityGroupId,
+              lot: lotConv?.lot || null,
+              convention: lotConv?.convention || null
+            };
+          })
         },
         assignments: {
           create: input.bucheronIds.map(bucheronId => ({
@@ -330,8 +326,7 @@ export async function createChantierService(input: {
                   include: {
                     essence: true
                   }
-                },
-                lotConventions: true
+                }
               }
             }
           }
@@ -348,28 +343,6 @@ export async function createChantierService(input: {
         }
       }
     });
-
-    // Créer les lots/conventions si fournis
-    if (input.lotConventions && input.lotConventions.length > 0) {
-      for (const lotConv of input.lotConventions) {
-        if (lotConv.lot || lotConv.convention) {
-          await prisma.lotConvention.upsert({
-            where: {
-              qualityGroupId: lotConv.qualityGroupId
-            },
-            update: {
-              lot: lotConv.lot || '',
-              convention: lotConv.convention || ''
-            },
-            create: {
-              lot: lotConv.lot || '',
-              convention: lotConv.convention || '',
-              qualityGroupId: lotConv.qualityGroupId
-            }
-          });
-        }
-      }
-    }
 
     return {
       id: chantier.id,
@@ -404,12 +377,8 @@ export async function createChantierService(input: {
           id: e.essence.id,
           name: e.essence.name
         })),
-        lotConventions: cqg.qualityGroup.lotConventions ? [{
-          id: cqg.qualityGroup.lotConventions.id,
-          lot: cqg.qualityGroup.lotConventions.lot,
-          convention: cqg.qualityGroup.lotConventions.convention,
-          qualityGroupId: cqg.qualityGroup.lotConventions.qualityGroupId
-        }] : []
+        lot: cqg.lot || null,
+        convention: cqg.convention || null
       })),
       bucherons: chantier.assignments.map(a => ({
         id: a.user.id,
@@ -488,8 +457,7 @@ export async function updateChantierService(
                   include: {
                     essence: true
                   }
-                },
-                lotConventions: true
+                }
               }
             }
           }
@@ -515,13 +483,18 @@ export async function updateChantierService(
         where: { chantierId }
       });
 
-      // Créer les nouvelles relations
-      await prisma.chantierQualityGroup.createMany({
-        data: input.qualityGroupIds.map(qualityGroupId => ({
-          chantierId,
-          qualityGroupId
-        }))
-      });
+      // Créer les nouvelles relations avec lot/convention
+      for (const qualityGroupId of input.qualityGroupIds) {
+        const lotConv = input.lotConventions?.find(lc => lc.qualityGroupId === qualityGroupId);
+        await prisma.chantierQualityGroup.create({
+          data: {
+            chantierId,
+            qualityGroupId,
+            lot: lotConv?.lot || null,
+            convention: lotConv?.convention || null
+          }
+        });
+      }
     }
 
     // Mettre à jour les bûcherons si fournis
@@ -556,29 +529,6 @@ export async function updateChantierService(
       });
     }
 
-    // Mettre à jour les lots/conventions si fournis
-    if (input.lotConventions && input.lotConventions.length > 0) {
-      for (const lotConv of input.lotConventions) {
-        if (lotConv.lot || lotConv.convention) {
-          // Chercher ou créer le lot/convention
-          const lotConvention = await prisma.lotConvention.upsert({
-            where: {
-              qualityGroupId: lotConv.qualityGroupId
-            },
-            update: {
-              lot: lotConv.lot || '',
-              convention: lotConv.convention || ''
-            },
-            create: {
-              lot: lotConv.lot || '',
-              convention: lotConv.convention || '',
-              qualityGroupId: lotConv.qualityGroupId
-            }
-          });
-        }
-      }
-    }
-
     // Récupérer le chantier mis à jour avec toutes les relations
     const finalChantier = await prisma.chantier.findUnique({
       where: { id: chantierId },
@@ -606,8 +556,7 @@ export async function updateChantierService(
                   include: {
                     essence: true
                   }
-                },
-                lotConventions: true
+                }
               }
             }
           }
@@ -671,12 +620,8 @@ export async function updateChantierService(
           id: e.essence.id,
           name: e.essence.name
         })),
-        lotConventions: cqg.qualityGroup.lotConventions ? [{
-          id: cqg.qualityGroup.lotConventions.id,
-          lot: cqg.qualityGroup.lotConventions.lot,
-          convention: cqg.qualityGroup.lotConventions.convention,
-          qualityGroupId: cqg.qualityGroup.lotConventions.qualityGroupId
-        }] : []
+        lot: cqg.lot || null,
+        convention: cqg.convention || null
       })),
       bucherons: finalChantier.assignments.map(a => ({
         id: a.user.id,

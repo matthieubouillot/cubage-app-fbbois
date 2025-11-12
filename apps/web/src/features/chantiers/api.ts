@@ -15,13 +15,8 @@ export type QualityGroup = {
   qualite: Qualite;
   scieur: Scieur;
   essences: Essence[];
-  lotConventions: LotConvention[];
-};
-export type LotConvention = {
-  id: string;
-  lot: string;
-  convention: string;
-  qualityGroupId: string;
+  lot?: string | null;
+  convention?: string | null;
 };
 export type Bucheron = { id: string; firstName: string; lastName: string };
 
@@ -66,12 +61,8 @@ export type ChantierListItem = {
       id: string;
       name: string;
     }[];
-    lotConventions: {
-      id: string;
-      lot: string;
-      convention: string;
-      qualityGroupId: string;
-    }[];
+    lot?: string | null;
+    convention?: string | null;
   }[];
   bucherons: { id: string; firstName: string; lastName: string }[];
   debardeurs?: { id: string; firstName: string; lastName: string }[];
@@ -118,12 +109,8 @@ export type ChantierDetail = {
       id: string;
       name: string;
     }[];
-    lotConventions: {
-      id: string;
-      lot: string;
-      convention: string;
-      qualityGroupId: string;
-    }[];
+    lot?: string | null;
+    convention?: string | null;
   }[];
   bucherons: Bucheron[];
   debardeurs: { id: string; firstName: string; lastName: string }[];
@@ -184,10 +171,6 @@ export async function getScieurs(): Promise<Scieur[]> {
 
 export async function getQualityGroups(): Promise<QualityGroup[]> {
   return api<QualityGroup[]>("/quality-groups");
-}
-
-export async function getLotConventionsByQualityGroup(qualityGroupId: string): Promise<LotConvention[]> {
-  return api<LotConvention[]>(`/lot-conventions?qualityGroupId=${qualityGroupId}`);
 }
 
 export async function getChantierById(id: string) {

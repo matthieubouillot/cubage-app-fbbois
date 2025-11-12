@@ -375,10 +375,8 @@ export default function ChantierFiche() {
             return sum + (Number(s.volumeCalc) || 0);
           }, 0);
 
-          // Récupérer le lot (premier lot convention s'il existe)
-          const lot = qg.lotConventions && qg.lotConventions.length > 0 
-            ? qg.lotConventions[0].lot || "" 
-            : "";
+          // Récupérer le lot
+          const lot = qg.lot || "";
 
           // Collecter les IDs des entreprises associées à cette scierie
           const entrepriseIdsSet = new Set<string>();

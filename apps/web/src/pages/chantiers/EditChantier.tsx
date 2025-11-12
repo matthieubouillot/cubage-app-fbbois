@@ -2,14 +2,13 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { 
   getQualityGroups, 
-  getLotConventionsByQualityGroup,
   getChantierById,
   updateChantier,
   getChantiers
 } from '../../features/chantiers/api';
 import { listClients, ClientDTO, createClient, CreateClientPayload, PropertyDTO, CreatePropertyPayload, updateClient, UpdateClientPayload } from '../../features/clients/api';
 import { listUsers, UserDTO } from '../../features/users/api';
-import { QualityGroup, LotConvention } from '../../features/chantiers/api';
+import { QualityGroup } from '../../features/chantiers/api';
 import { listSaisies } from '../../features/saisies/api';
 import MobileBack from '../../components/MobileBack';
 
@@ -52,8 +51,6 @@ export default function EditChantier() {
   
   // États pour les lots/conventions
   const [selectedQualityGroups, setSelectedQualityGroups] = useState<QualityGroup[]>([]);
-  const [lotConventions, setLotConventions] = useState<Record<string, LotConvention[]>>({});
-  const [selectedLotConventions, setSelectedLotConventions] = useState<Record<string, string>>({});
   const [customLotConventions, setCustomLotConventions] = useState<Record<string, { lot: string; convention: string }>>({});
   
   // États pour la sélection de client
@@ -112,16 +109,11 @@ export default function EditChantier() {
           const lotConvData: Record<string, { lot: string; convention: string }> = {};
           if (c.qualityGroups) {
             for (const cqg of c.qualityGroups) {
-              // Récupérer les lots/conventions depuis l'API
-              const lotConv = (cqg as any).lotConventions?.[0];
-              if (lotConv) {
-                lotConvData[cqg.id] = { 
-                  lot: lotConv.lot || '', 
-                  convention: lotConv.convention || '' 
-                };
-              } else {
-                lotConvData[cqg.id] = { lot: '', convention: '' };
-              }
+              // Récupérer les lots/conventions directement depuis le quality group
+              lotConvData[cqg.id] = { 
+                lot: (cqg as any).lot || '', 
+                convention: (cqg as any).convention || '' 
+              };
             }
           }
           setCustomLotConventions(lotConvData);
@@ -198,29 +190,6 @@ export default function EditChantier() {
     }
   }, [clientSearch, clients, formData.clientId]);
 
-  // Charger les lots/conventions quand les groupes de qualité changent
-  useEffect(() => {
-    const loadLotConventions = async () => {
-      const newLotConventions: Record<string, LotConvention[]> = {};
-      
-      for (const qualityGroup of selectedQualityGroups) {
-        try {
-          const lc = await getLotConventionsByQualityGroup(qualityGroup.id);
-          newLotConventions[qualityGroup.id] = lc;
-        } catch (error) {
-          console.error(`Erreur lors du chargement des lots/conventions pour ${qualityGroup.name}:`, error);
-          newLotConventions[qualityGroup.id] = [];
-        }
-      }
-      
-      setLotConventions(newLotConventions);
-    };
-    
-    if (selectedQualityGroups.length > 0) {
-      loadLotConventions();
-    }
-  }, [selectedQualityGroups]);
-
   const handleQualityGroupToggle = (qualityGroup: QualityGroup) => {
     const isSelected = formData.qualityGroupIds.includes(qualityGroup.id);
     
@@ -238,10 +207,10 @@ export default function EditChantier() {
       }));
       setSelectedQualityGroups(prev => prev.filter(qg => qg.id !== qualityGroup.id));
       
-      // Nettoyer les lots/conventions sélectionnés
-      const newSelectedLotConventions = { ...selectedLotConventions };
-      delete newSelectedLotConventions[qualityGroup.id];
-      setSelectedLotConventions(newSelectedLotConventions);
+      // Nettoyer les lots/conventions personnalisés
+      const newCustomLotConventions = { ...customLotConventions };
+      delete newCustomLotConventions[qualityGroup.id];
+      setCustomLotConventions(newCustomLotConventions);
     } else {
       // Sélectionner
       setFormData(prev => ({
@@ -250,13 +219,6 @@ export default function EditChantier() {
       }));
       setSelectedQualityGroups(prev => [...prev, qualityGroup]);
     }
-  };
-
-  const handleLotConventionChange = (qualityGroupId: string, lotConventionId: string) => {
-    setSelectedLotConventions(prev => ({
-      ...prev,
-      [qualityGroupId]: lotConventionId
-    }));
   };
 
   const handleCustomLotConventionChange = (qualityGroupId: string, field: 'lot' | 'convention', value: string) => {

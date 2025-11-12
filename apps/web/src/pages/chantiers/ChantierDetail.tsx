@@ -374,7 +374,7 @@ export default function ChantierDetail() {
     const client = chantier.client;
     
     // Récupérer les informations de lot et convention
-    const lotConvention = qg.lotConventions ? qg.lotConventions[0] : null;
+    const lotConvention = { lot: qg.lot || null, convention: qg.convention || null };
     
     // Construire les informations à afficher
     let propertyInfo = '';
@@ -604,7 +604,7 @@ export default function ChantierDetail() {
     const qual = `
       <section class="mb-2">
         <div class="quality-title">${qualite.essences.map(e => e.name).join(' ')} ${qualite.qualite.name} ${qualite.scieur.name}</div>
-        <div class="muted small"><strong>Lot :</strong> ${(qualite as any).lotConventions?.[0]?.lot || "—"} • <strong>Convention :</strong> ${(qualite as any).lotConventions?.[0]?.convention || "—"}</div>
+        <div class="muted small"><strong>Lot :</strong> ${(qualite as any).lot || "—"} • <strong>Convention :</strong> ${(qualite as any).convention || "—"}</div>
         <div class="muted small"><strong>Seuils :</strong> V1 = 0,250 m³ • V2 = 0,500 m³ • % écorce : ${qualite.pourcentageEcorce ?? 0}%</div>
       </section>
     `;
@@ -748,7 +748,7 @@ export default function ChantierDetail() {
     const qual = `
       <section class="mb-2">
         <div class="quality-title">${qualite.essences.map(e => e.name).join(' ')} ${qualite.qualite.name} ${qualite.scieur.name}</div>
-        <div class="muted small"><strong>Lot :</strong> ${(qualite as any).lotConventions?.[0]?.lot || "—"} • <strong>Convention :</strong> ${(qualite as any).lotConventions?.[0]?.convention || "—"}</div>
+        <div class="muted small"><strong>Lot :</strong> ${(qualite as any).lot || "—"} • <strong>Convention :</strong> ${(qualite as any).convention || "—"}</div>
         <div class="muted small">Seuils : V1 = 0,250 m³ • V2 = 0,500 m³ • % écorce : ${qualite.pourcentageEcorce ?? 0}%</div>
       </section>
     `;
@@ -1037,9 +1037,9 @@ export default function ChantierDetail() {
         {/* Lot et Convention */}
         {activeQualityGroup && (
           <div className="mb-2 text-gray-700">
-            <span className="font-medium">Lot :</span> <span className="tabular-nums">{(activeQualityGroup as any).lotConventions?.[0]?.lot || "—"}</span>
+            <span className="font-medium">Lot :</span> <span className="tabular-nums">{(activeQualityGroup as any).lot || "—"}</span>
             {" • "}
-            <span className="font-medium">Convention :</span> <span className="tabular-nums">{(activeQualityGroup as any).lotConventions?.[0]?.convention || "—"}</span>
+            <span className="font-medium">Convention :</span> <span className="tabular-nums">{(activeQualityGroup as any).convention || "—"}</span>
           </div>
         )}
         

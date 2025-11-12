@@ -25,14 +25,8 @@ export interface QualityGroup {
   qualite: Qualite;
   scieur: Scieur;
   essences: Essence[];
-  lotConventions: LotConvention[];
-}
-
-export interface LotConvention {
-  id: string;
-  lot: string;
-  convention: string;
-  qualityGroupId: string;
+  lot?: string | null;
+  convention?: string | null;
 }
 
 export interface Client {
@@ -64,7 +58,8 @@ export interface Chantier {
     qualite: Qualite;
     scieur: Scieur;
     essences: Essence[];
-    lotConventions: LotConvention[];
+    lot?: string | null;
+    convention?: string | null;
   }[];
   bucherons: {
     id: string;

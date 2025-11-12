@@ -2,13 +2,12 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { 
   getQualityGroups, 
-  getLotConventionsByQualityGroup,
   createChantier,
   getChantiers
 } from '../../features/chantiers/api';
 import { listClients, ClientDTO, createClient, CreateClientPayload, PropertyDTO, CreatePropertyPayload, updateClient, UpdateClientPayload } from '../../features/clients/api';
 import { listUsers, UserDTO } from '../../features/users/api';
-import { QualityGroup, LotConvention } from '../../features/chantiers/api';
+import { QualityGroup } from '../../features/chantiers/api';
 import MobileBack from '../../components/MobileBack';
 
 type CreateChantierDTO = {
@@ -49,8 +48,6 @@ export default function CreateChantier() {
   
   // États pour les lots/conventions
   const [selectedQualityGroups, setSelectedQualityGroups] = useState<QualityGroup[]>([]);
-  const [lotConventions, setLotConventions] = useState<Record<string, LotConvention[]>>({});
-  const [selectedLotConventions, setSelectedLotConventions] = useState<Record<string, string>>({});
   const [customLotConventions, setCustomLotConventions] = useState<Record<string, { lot: string; convention: string }>>({});
   
   // États pour la sélection de client
@@ -117,29 +114,6 @@ export default function CreateChantier() {
     }
   }, [clientSearch, clients, formData.clientId]);
 
-  // Charger les lots/conventions quand les groupes de qualité changent
-  useEffect(() => {
-    const loadLotConventions = async () => {
-      const newLotConventions: Record<string, LotConvention[]> = {};
-      
-      for (const qualityGroup of selectedQualityGroups) {
-        try {
-          const lc = await getLotConventionsByQualityGroup(qualityGroup.id);
-          newLotConventions[qualityGroup.id] = lc;
-        } catch (error) {
-          console.error(`Erreur lors du chargement des lots/conventions pour ${qualityGroup.name}:`, error);
-          newLotConventions[qualityGroup.id] = [];
-        }
-      }
-      
-      setLotConventions(newLotConventions);
-    };
-    
-    if (selectedQualityGroups.length > 0) {
-      loadLotConventions();
-    }
-  }, [selectedQualityGroups]);
-
   const handleQualityGroupToggle = (qualityGroup: QualityGroup) => {
     const isSelected = formData.qualityGroupIds.includes(qualityGroup.id);
     
@@ -151,10 +125,10 @@ export default function CreateChantier() {
       }));
       setSelectedQualityGroups(prev => prev.filter(qg => qg.id !== qualityGroup.id));
       
-      // Nettoyer les lots/conventions sélectionnés
-      const newSelectedLotConventions = { ...selectedLotConventions };
-      delete newSelectedLotConventions[qualityGroup.id];
-      setSelectedLotConventions(newSelectedLotConventions);
+      // Nettoyer les lots/conventions personnalisés
+      const newCustomLotConventions = { ...customLotConventions };
+      delete newCustomLotConventions[qualityGroup.id];
+      setCustomLotConventions(newCustomLotConventions);
     } else {
       // Sélectionner
       setFormData(prev => ({
@@ -163,13 +137,6 @@ export default function CreateChantier() {
       }));
       setSelectedQualityGroups(prev => [...prev, qualityGroup]);
     }
-  };
-
-  const handleLotConventionChange = (qualityGroupId: string, lotConventionId: string) => {
-    setSelectedLotConventions(prev => ({
-      ...prev,
-      [qualityGroupId]: lotConventionId
-    }));
   };
 
   const handleCustomLotConventionChange = (qualityGroupId: string, field: 'lot' | 'convention', value: string) => {

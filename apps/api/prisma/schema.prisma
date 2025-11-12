@@ -142,7 +142,6 @@ model QualityGroup {
   scieurId          String
   pourcentageEcorce Int
   chantierGroups    ChantierQualityGroup[]
-  lotConventions    LotConvention?
   gpsPoints         GPSPoint[]
   qualite           Qualite                @relation(fields: [qualiteId], references: [id])
   scieur            Scieur                 @relation(fields: [scieurId], references: [id])
@@ -165,16 +164,9 @@ model QualityGroupEssence {
 }
 
 /// *
-///  * ──────────────────────────────────────────────────────────────
-///  * LOTS & CONVENTIONS
+///  * LOTS & CONVENTIONS SUPPRIMÉS
+///  * Maintenant dans ChantierQualityGroup
 ///  * ───────────────────────────────────────────────────────────────
-model LotConvention {
-  id             String       @id @default(uuid())
-  lot            String
-  convention     String
-  qualityGroupId String       @unique
-  qualityGroup   QualityGroup @relation(fields: [qualityGroupId], references: [id])
-}
 
 /// *
 ///  * ──────────────────────────────────────────────────────────────
@@ -202,12 +194,14 @@ model Chantier {
 
 /// *
 ///  * ──────────────────────────────────────────────────────────────
-///  * RELATION N↔N Chantier ↔ QualityGroup
+///  * RELATION N↔N Chantier ↔ QualityGroup (avec lot et convention)
 ///  * ───────────────────────────────────────────────────────────────
 model ChantierQualityGroup {
   id             String       @id @default(uuid())
   chantierId     String
   qualityGroupId String
+  lot            String?      // Lot spécifique à cette coupe
+  convention     String?      // Convention spécifique à cette coupe
   chantier       Chantier     @relation(fields: [chantierId], references: [id])
   qualityGroup   QualityGroup @relation(fields: [qualityGroupId], references: [id])
 

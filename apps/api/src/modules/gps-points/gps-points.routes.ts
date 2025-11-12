@@ -10,8 +10,8 @@ import {
 
 const router = Router();
 
-// GET /api/gps-points/quality-group/:qualityGroupId - Récupérer tous les points GPS d'un quality group
-router.get("/quality-group/:qualityGroupId", getGPSPointsByQualityGroupController);
+// GET /api/gps-points/:chantierId/quality-group/:qualityGroupId - Récupérer tous les points GPS d'un chantier pour un quality group
+router.get("/:chantierId/quality-group/:qualityGroupId", getGPSPointsByQualityGroupController);
 
 // GET /api/gps-points/:chantierId - Récupérer tous les points GPS d'un chantier
 router.get("/:chantierId", getGPSPoints);

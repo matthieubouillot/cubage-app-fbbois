@@ -39,7 +39,7 @@ export async function fetchGPSPoints(chantierId: string, qualityGroupId?: string
   
   try {
     if (qualityGroupId) {
-      return await api<GPSPoint[]>(`/gps-points/quality-group/${qualityGroupId}`);
+      return await api<GPSPoint[]>(`/gps-points/${chantierId}/quality-group/${qualityGroupId}`);
     }
     return await api<GPSPoint[]>(`/gps-points/${chantierId}`);
   } catch (error: any) {

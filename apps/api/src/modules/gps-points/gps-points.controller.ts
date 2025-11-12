@@ -21,8 +21,8 @@ export async function getGPSPoints(req: Request, res: Response) {
 
 export async function getGPSPointsByQualityGroupController(req: Request, res: Response) {
   try {
-    const { qualityGroupId } = req.params;
-    const points = await getGPSPointsByQualityGroup(qualityGroupId);
+    const { chantierId, qualityGroupId } = req.params;
+    const points = await getGPSPointsByQualityGroup(chantierId, qualityGroupId);
     res.json(points);
   } catch (error: any) {
     console.error("Error fetching GPS points by quality group:", error);

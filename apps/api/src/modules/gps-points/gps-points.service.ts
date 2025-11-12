@@ -24,9 +24,12 @@ export async function getGPSPointsByChantier(chantierId: string) {
   });
 }
 
-export async function getGPSPointsByQualityGroup(qualityGroupId: string) {
+export async function getGPSPointsByQualityGroup(chantierId: string, qualityGroupId: string) {
   return await prisma.gPSPoint.findMany({
-    where: { qualityGroupId },
+    where: { 
+      chantierId,
+      qualityGroupId 
+    },
     orderBy: { order: 'asc' },
     include: {
       qualityGroup: true
