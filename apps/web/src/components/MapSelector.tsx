@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { MapContainer, TileLayer, Marker, useMapEvents } from 'react-leaflet';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
+import { DEFAULT_MAP_LAYER } from '../config/maps';
 
 // Fix pour les icônes Leaflet
 delete (L.Icon.Default.prototype as any)._getIconUrl;
@@ -43,10 +44,12 @@ export default function MapSelector({ center, onLocationSelect, selectedLocation
         zoom={13}
         style={{ height: '100%', width: '100%' }}
         className="z-0"
+        attributionControl={false}
       >
         <TileLayer
-          attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
-          url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+          url={DEFAULT_MAP_LAYER.url}
+          attribution={DEFAULT_MAP_LAYER.attribution}
+          maxZoom={DEFAULT_MAP_LAYER.maxZoom}
         />
         <MapClickHandler onLocationSelect={onLocationSelect} />
         {selectedLocation && (

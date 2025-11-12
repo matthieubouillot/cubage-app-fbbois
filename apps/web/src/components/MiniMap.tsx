@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { MapContainer, TileLayer, Marker, useMap } from 'react-leaflet';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
+import { DEFAULT_MAP_LAYER } from '../config/maps';
 
 // Fix pour les icônes Leaflet
 delete (L.Icon.Default.prototype as any)._getIconUrl;
@@ -59,7 +60,9 @@ export default function MiniMap({ latitude, longitude, className = "" }: MiniMap
         attributionControl={false}
       >
         <TileLayer
-          url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+          url={DEFAULT_MAP_LAYER.url}
+          attribution={DEFAULT_MAP_LAYER.attribution}
+          maxZoom={DEFAULT_MAP_LAYER.maxZoom}
         />
         <MapUpdater latitude={latitude} longitude={longitude} />
         <Marker position={[latitude, longitude]} />
