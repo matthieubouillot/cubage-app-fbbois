@@ -243,6 +243,11 @@ export default function ClientsPage() {
             <div className="p-4 border-b flex items-center justify-between">
               <h3 className="text-base font-semibold">
                 Propriétés de {showPropertiesModal.firstName} {showPropertiesModal.lastName}
+                {showPropertiesModal.properties && showPropertiesModal.properties.length > 0 && (() => {
+                  const totalM2 = showPropertiesModal.properties.reduce((sum, p) => sum + (p.surfaceCadastrale || 0), 0);
+                  const totalHa = (totalM2 / 10000).toFixed(2);
+                  return totalM2 > 0 ? ` - ${totalHa} ha` : '';
+                })()}
               </h3>
               <button
                 onClick={() => setShowPropertiesModal(null)}
@@ -695,10 +700,10 @@ function EditPropertyModal({
         throw new Error("La parcelle est obligatoire.");
       }
 
-      // Validation section : seulement des lettres, 2 caractères
+      // Validation section : seulement des lettres, 1 à 2 caractères
       const sectionUpper = section.toUpperCase().trim();
-      if (!/^[A-Z]{2}$/.test(sectionUpper)) {
-        throw new Error("La section doit contenir exactement 2 lettres.");
+      if (!/^[A-Z]{1,2}$/.test(sectionUpper)) {
+        throw new Error("La section doit contenir 1 ou 2 lettres.");
       }
 
       // Validation parcelle : seulement des chiffres
@@ -795,7 +800,7 @@ function EditPropertyModal({
 
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <div className="text-xs text-gray-600 mb-1">Section (2 lettres) *</div>
+              <div className="text-xs text-gray-600 mb-1">Section (1-2 lettres) *</div>
               <input
                 type="text"
                 value={section}
@@ -824,7 +829,7 @@ function EditPropertyModal({
           </div>
 
           <div>
-            <div className="text-xs text-gray-600 mb-1">Surface cadastrale (m³)</div>
+            <div className="text-xs text-gray-600 mb-1">Surface cadastrale (m²)</div>
             <input
               type="number"
               step="0.001"
