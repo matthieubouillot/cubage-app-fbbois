@@ -244,7 +244,10 @@ export default function ClientsPage() {
               <h3 className="text-base font-semibold">
                 Propriétés de {showPropertiesModal.firstName} {showPropertiesModal.lastName}
                 {showPropertiesModal.properties && showPropertiesModal.properties.length > 0 && (() => {
-                  const totalM2 = showPropertiesModal.properties.reduce((sum, p) => sum + (p.surfaceCadastrale || 0), 0);
+                  const totalM2 = showPropertiesModal.properties.reduce((sum, p) => {
+                    const surface = p.surfaceCadastrale ? Number(p.surfaceCadastrale) : 0;
+                    return sum + surface;
+                  }, 0);
                   const totalHa = (totalM2 / 10000).toFixed(2);
                   return totalM2 > 0 ? ` - ${totalHa} ha` : '';
                 })()}
