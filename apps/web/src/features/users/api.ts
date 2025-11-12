@@ -50,6 +50,11 @@ export async function listUsers() {
   return api<UserDTO[]>("/users");
 }
 
+export async function listDebardeurs() {
+  // Liste des débardeurs accessible à tous les utilisateurs authentifiés
+  return api<UserDTO[]>("/users/debardeurs");
+}
+
 export async function createUser(payload: CreateUserPayload) {
   return api<UserDTO>("/users", {
     method: "POST",

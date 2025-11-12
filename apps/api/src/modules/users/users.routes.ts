@@ -5,10 +5,14 @@ import {
   createUser,
   updateUser,
   deleteUser,
+  getDebardeurs,
 } from "./users.controller";
 import { authenticate } from "../../middlewares/auth";
 
 const router = Router();
+
+// Route accessible à tous les utilisateurs authentifiés
+router.get("/debardeurs", authenticate, getDebardeurs);
 
 // Toutes ces routes sont protégées + réservées au SUPERVISEUR (vérifié en controller)
 router.use(authenticate);

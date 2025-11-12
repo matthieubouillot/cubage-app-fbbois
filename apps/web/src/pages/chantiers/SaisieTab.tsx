@@ -8,7 +8,7 @@ import {
 } from "../../features/saisies/api";
 import { twMerge } from "tailwind-merge";
 import { useDebardeurSelection } from "../../hooks/useDebardeurSelection";
-import { listUsers } from "../../features/users/api";
+import { listDebardeurs } from "../../features/users/api";
 
 /* ───────── helpers ───────── */
 function fmt3(v?: number | null) {
@@ -211,8 +211,7 @@ export default function SaisieTab({
   useEffect(() => {
     const loadDebardeurs = async () => {
       try {
-        const users = await listUsers();
-        const debardeursList = users.filter((user: any) => user.roles.includes('DEBARDEUR'));
+        const debardeursList = await listDebardeurs();
         setDebardeurs(debardeursList);
       } catch (error) {
         console.error('Erreur lors du chargement des débardeurs:', error);

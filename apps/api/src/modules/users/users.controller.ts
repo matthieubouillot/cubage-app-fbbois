@@ -69,6 +69,20 @@ export async function getUsers(req: Request, res: Response) {
   }
 }
 
+/** GET /users/debardeurs - Liste des débardeurs (accessible à tous les utilisateurs authentifiés) */
+export async function getDebardeurs(req: Request, res: Response) {
+  try {
+    const users = await getUsersService("DEBARDEUR");
+    res.json(users);
+  } catch (e: any) {
+    res
+      .status(500)
+      .json({
+        error: e.message || "Erreur lors de la récupération des débardeurs",
+      });
+  }
+}
+
 /** GET /users/:id */
 export async function getUserById(req: Request, res: Response) {
   const gate = requireSupervisor(req, res);
