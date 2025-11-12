@@ -27,19 +27,13 @@ export default function GPSPointsManager({ chantierId, qualityGroupId, onPointsC
   const buttonKey = qualityGroupId ? `gps_${qualityGroupId}` : 'gps';
 
   // Fonction pour géocoder l'adresse du client
-  const geocodeClientAddress = async () => {
-    if (!clientAddress?.city) return;
+  const geocodeFixedAddress = async () => {
+    // Adresse fixe pour l'instant
+    const fixedAddress = "4 LA PETITE IMPASSE 43620 SAINT-ROMAIN-LACHALM, France";
 
     try {
-      const addressParts = [];
-      if (clientAddress.street) addressParts.push(clientAddress.street);
-      if (clientAddress.postalCode) addressParts.push(clientAddress.postalCode);
-      if (clientAddress.city) addressParts.push(clientAddress.city);
-      
-      const fullAddress = addressParts.join(', ') + ', France';
-      
       const response = await fetch(
-        `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(fullAddress)}&limit=1&countrycodes=fr`
+        `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(fixedAddress)}&limit=1&countrycodes=fr`
       );
       
       const data = await response.json();
@@ -47,9 +41,14 @@ export default function GPSPointsManager({ chantierId, qualityGroupId, onPointsC
       if (data && data.length > 0) {
         const { lat, lon } = data[0];
         setMapCenter({ lat: parseFloat(lat), lng: parseFloat(lon) });
+      } else {
+        // Coordonnées approximatives de Saint-Romain-Lachalm si le géocodage échoue
+        setMapCenter({ lat: 45.1744, lng: 4.3383 });
       }
     } catch (error) {
-      console.warn('Erreur lors du géocodage de l\'adresse du client:', error);
+      console.warn('Erreur lors du géocodage:', error);
+      // Coordonnées approximatives de Saint-Romain-Lachalm
+      setMapCenter({ lat: 45.1744, lng: 4.3383 });
     }
   };
 
@@ -58,26 +57,20 @@ export default function GPSPointsManager({ chantierId, qualityGroupId, onPointsC
   }, [chantierId, qualityGroupId]);
 
   useEffect(() => {
-    geocodeClientAddress();
-  }, [clientAddress]);
+    geocodeFixedAddress();
+  }, []); // Une seule fois au montage du composant
 
-  // Géolocalisation quand le formulaire s'ouvre
+  // Géolocalisation quand le formulaire s'ouvre (désactivé sur desktop, on utilise l'adresse du client)
   useEffect(() => {
-    if (showForm && navigator.geolocation) {
-      navigator.geolocation.getCurrentPosition(
-        (position) => {
-          setMapCenter({
-            lat: position.coords.latitude,
-            lng: position.coords.longitude
-          });
-        },
-        () => {
-          setMapCenter({ lat: 46.2276, lng: 2.2137 });
-        },
-        { timeout: 3000, enableHighAccuracy: false, maximumAge: 60000 }
-      );
+    if (showForm) {
+      // Sur desktop, on ne tente pas la géolocalisation (peu fiable)
+      // La carte se centre automatiquement sur l'adresse du client via geocodeClientAddress
+      // L'utilisateur peut ensuite cliquer sur la carte pour placer le point
+      if (!mapCenter) {
+        setMapCenter({ lat: 46.2276, lng: 2.2137 }); // Centre de la France par défaut
+      }
     }
-  }, [showForm]);
+  }, [showForm, mapCenter]);
 
   const loadPoints = async () => {
     try {
