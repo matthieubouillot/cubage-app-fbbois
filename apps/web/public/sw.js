@@ -1,4 +1,4 @@
-const CACHE = "cubage-shell-v4";
+const CACHE = "cubage-shell-v5";
 const APP_SHELL = [
   "/",
   "/index.html",
@@ -8,8 +8,15 @@ const APP_SHELL = [
 
 self.addEventListener("install", (e) => {
   e.waitUntil(
-    caches.open(CACHE).then((c) => c.addAll(APP_SHELL)).then(() => self.skipWaiting()),
+    caches.open(CACHE).then((c) => c.addAll(APP_SHELL))
   );
+});
+
+// Écouter les messages pour prendre le contrôle immédiatement
+self.addEventListener("message", (e) => {
+  if (e.data && e.data.type === "SKIP_WAITING") {
+    self.skipWaiting();
+  }
 });
 
 self.addEventListener("activate", (e) => {
@@ -34,39 +41,50 @@ self.addEventListener("fetch", (e) => {
     return;
   }
 
-  // Handle navigations: always serve the SPA shell
+  // Handle navigations: network-first pour toujours avoir la dernière version
   if (req.mode === "navigate" && url.origin === self.location.origin) {
     e.respondWith(
-      caches.match("/index.html").then((cached) =>
-        cached || fetch("/index.html").then((res) => {
-          // Cache the shell for next time
+      fetch("/index.html")
+        .then((res) => {
+          // Cache la nouvelle version
           const resClone = res.clone();
           caches.open(CACHE).then((c) => c.put("/index.html", resClone));
           return res;
-        }).catch(() => caches.match("/index.html"))
-      ),
+        })
+        .catch(() => caches.match("/index.html")) // Fallback sur le cache si offline
     );
     return;
   }
 
-  // For same-origin assets: cache-first with runtime fill
+  // Pour les fichiers JS/CSS avec hash (index-ABC123.js): cache-first car ils ne changent jamais
+  // Pour les autres assets: network-first
   if (url.origin === self.location.origin) {
-    e.respondWith(
-      caches.match(req).then((cached) => {
-        if (cached) return cached;
-        return fetch(req)
+    const hasHashInFilename = /\-[a-zA-Z0-9]{8,}\.(js|css)$/.test(url.pathname);
+    
+    if (hasHashInFilename) {
+      // Cache-first pour les fichiers avec hash (immutables)
+      e.respondWith(
+        caches.match(req).then((cached) => {
+          if (cached) return cached;
+          return fetch(req).then((res) => {
+            const resClone = res.clone();
+            caches.open(CACHE).then((c) => c.put(req, resClone));
+            return res;
+          });
+        })
+      );
+    } else {
+      // Network-first pour les autres assets (peuvent changer)
+      e.respondWith(
+        fetch(req)
           .then((res) => {
             const resClone = res.clone();
             caches.open(CACHE).then((c) => c.put(req, resClone));
             return res;
           })
-          .catch(() => {
-            // If request was for the shell specifically
-            if (url.pathname === "/index.html") return caches.match("/index.html");
-            return undefined;
-          });
-      }),
-    );
+          .catch(() => caches.match(req)) // Fallback sur le cache si offline
+      );
+    }
     return;
   }
 

@@ -17,6 +17,7 @@ import ClientsPage from "./pages/clients/ClientsPage";
 import { getUser, isAuthenticated } from "./features/auth/auth";
 import { syncOfflineQueueNow } from "./features/saisies/api";
 import { syncChantiersOfflineNow } from "./features/chantiers/api";
+import UpdateNotification from "./components/UpdateNotification";
 
 export default function App() {
   // Empêche l’historique de ré-afficher une page protégée après logout (back nav)
@@ -44,6 +45,7 @@ export default function App() {
 
   return (
     <div className="min-h-screen bg-gray-50">
+      <UpdateNotification />
       <Routes>
         {/* Public */}
         <Route path="/login" element={<LoginPage />} />
