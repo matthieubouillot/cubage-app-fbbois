@@ -5,15 +5,20 @@ import { z } from "zod";
 import { requestPasswordReset, resetPassword } from "./password.service";
 
 export async function login(req: Request, res: Response) {
-  const { email, password } = req.body as { email?: string; password?: string };
-  if (!email || !password)
-    return res.status(400).json({ error: "Email et mot de passe requis" });
+  try {
+    const { email, password } = req.body as { email?: string; password?: string };
+    if (!email || !password)
+      return res.status(400).json({ error: "Email et mot de passe requis" });
 
-  const user = await validateUser(email, password);
-  if (!user) return res.status(400).json({ error: "Identifiants invalides" });
+    const user = await validateUser(email, password);
+    if (!user) return res.status(400).json({ error: "Identifiants invalides" });
 
-  const token = signToken({ userId: user.id, roles: user.roles as any });
-  return res.json({ token, user });
+    const token = signToken({ userId: user.id, roles: user.roles as any });
+    return res.json({ token, user });
+  } catch (error) {
+    console.error("❌ Login error:", error);
+    return res.status(500).json({ error: "Erreur lors de la connexion", details: (error as any)?.message });
+  }
 }
 
 const ForgotSchema = z.object({ email: z.string().email() });

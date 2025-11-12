@@ -17,7 +17,14 @@
     <div id="root"></div>
     <script type="module" src="/src/main.tsx"></script>
     <script>
-      if ('serviceWorker' in navigator) {
+      // En développement (localhost), désinscrire le Service Worker pour éviter les problèmes avec Vite HMR
+      const isDev = location.hostname === 'localhost' || location.hostname === '127.0.0.1';
+      
+      if ('serviceWorker' in navigator && isDev) {
+        navigator.serviceWorker.getRegistrations().then(registrations => {
+          registrations.forEach(registration => registration.unregister());
+        });
+      } else if ('serviceWorker' in navigator && !isDev) {
         window.addEventListener('load', () => {
           navigator.serviceWorker.register('/sw.js').catch(() => {});
         });

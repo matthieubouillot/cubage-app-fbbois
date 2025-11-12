@@ -164,17 +164,13 @@ export default function ClientsPage() {
                       <Td className="text-gray-700">{c.postalCode}</Td>
                       <Td className="text-gray-700">{c.city}</Td>
                       <Td className="text-gray-700 text-center">
-                        {c.properties && c.properties.length > 0 ? (
-                          <button
-                            onClick={() => setShowPropertiesModal(c)}
-                            className="inline-flex items-center justify-center h-7 w-7 rounded-full bg-white border border-gray-200 text-black hover:border-gray-300 hover:bg-gray-50 font-medium transition-colors"
-                            title="Voir les propriétés"
-                          >
-                            {c.properties.length}
-                          </button>
-                        ) : (
-                          "-"
-                        )}
+                        <button
+                          onClick={() => setShowPropertiesModal(c)}
+                          className="inline-flex items-center justify-center h-7 w-7 rounded-full bg-white border border-gray-200 text-black hover:border-gray-300 hover:bg-gray-50 font-medium transition-colors"
+                          title={c.properties && c.properties.length > 0 ? "Voir les propriétés" : "Ajouter une propriété"}
+                        >
+                          {c.properties?.length || 0}
+                        </button>
                       </Td>
                       <Td className="text-center">
                         <div className="flex items-center justify-center gap-2">
@@ -330,7 +326,17 @@ export default function ClientsPage() {
                                     city: showPropertiesModal.city || "",
                                     properties: updatedProperties,
                                   });
+                                  
+                                  // Rafraîchir les données
                                   await refresh();
+                                  
+                                  // Mettre à jour la modal avec les nouvelles données
+                                  const updatedClient = await listClients().then(clients => 
+                                    clients.find(c => c.id === showPropertiesModal.id)
+                                  );
+                                  if (updatedClient) {
+                                    setShowPropertiesModal(updatedClient);
+                                  }
                                 } catch (e: any) {
                                   alert(e.message || "Erreur lors de la suppression");
                                 }
@@ -373,9 +379,17 @@ export default function ClientsPage() {
             setEditingProperty(null);
             refresh();
           }}
-          onSave={() => {
+          onSave={async () => {
             setEditingProperty(null);
-            refresh();
+            await refresh();
+            
+            // Rouvrir la modal avec les données à jour si on était en train de la voir
+            const updatedClient = await listClients().then(clients => 
+              clients.find(c => c.id === editingProperty.client.id)
+            );
+            if (updatedClient) {
+              setShowPropertiesModal(updatedClient);
+            }
           }}
         />
       )}
