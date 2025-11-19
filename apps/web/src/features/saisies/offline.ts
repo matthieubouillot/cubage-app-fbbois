@@ -64,11 +64,14 @@ export async function createSaisieOffline(payload: {
     if (!me) {
       throw new Error("Utilisateur non connecté");
     }
-    if (me.numStart && payload.numero < me.numStart) {
-      throw new Error(`Le numéro doit être supérieur ou égal à ${me.numStart}`);
-    }
-    if (me.numEnd && payload.numero > me.numEnd) {
-      throw new Error(`Le numéro doit être inférieur ou égal à ${me.numEnd}`);
+    const canBypassRange = me.roles?.includes("SUPERVISEUR");
+    if (!canBypassRange) {
+      if (me.numStart && payload.numero < me.numStart) {
+        throw new Error(`Le numéro doit être supérieur ou égal à ${me.numStart}`);
+      }
+      if (me.numEnd && payload.numero > me.numEnd) {
+        throw new Error(`Le numéro doit être inférieur ou égal à ${me.numEnd}`);
+      }
     }
     
     const existing = await readCachedSaisiesList(chantierId, qualityGroupId);
@@ -168,11 +171,14 @@ export async function updateSaisieOffline(
     if (!me) {
       throw new Error("Utilisateur non connecté");
     }
-    if (me.numStart && payload.numero < me.numStart) {
-      throw new Error(`Le numéro doit être supérieur ou égal à ${me.numStart}`);
-    }
-    if (me.numEnd && payload.numero > me.numEnd) {
-      throw new Error(`Le numéro doit être inférieur ou égal à ${me.numEnd}`);
+    const canBypassRange = me.roles?.includes("SUPERVISEUR");
+    if (!canBypassRange) {
+      if (me.numStart && payload.numero < me.numStart) {
+        throw new Error(`Le numéro doit être supérieur ou égal à ${me.numStart}`);
+      }
+      if (me.numEnd && payload.numero > me.numEnd) {
+        throw new Error(`Le numéro doit être inférieur ou égal à ${me.numEnd}`);
+      }
     }
     
     const allRows = await readCachedSaisiesList(chantierId, qualityGroupId);

@@ -185,6 +185,7 @@ export async function updateUserService(
     firstName: string;
     lastName: string;
     roles: Role[];
+    email: string;
     phone: string;
     numStart: number;
     numEnd: number;
@@ -194,6 +195,8 @@ export async function updateUserService(
 ) {
   if (!NAME_RE.test(input.firstName)) throw new Error("Prénom invalide");
   if (!NAME_RE.test(input.lastName)) throw new Error("Nom invalide");
+  const normalizedEmail = input.email?.trim().toLowerCase();
+  if (!normalizedEmail) throw new Error("Email invalide");
   if (!PHONE_RE.test(input.phone)) throw new Error("Téléphone invalide");
   if (
     !Number.isFinite(input.numStart) ||
@@ -257,6 +260,7 @@ export async function updateUserService(
       firstName: input.firstName.trim(),
       lastName: input.lastName.trim(),
       roles: input.roles,
+      email: normalizedEmail,
       phone: input.phone.trim(),
       numStart: input.numStart,
       numEnd: input.numEnd,

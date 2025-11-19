@@ -20,6 +20,7 @@ import MobileBack from "../../components/MobileBack";
 const ROLES: Role[] = ["SUPERVISEUR", "BUCHERON", "DEBARDEUR"];
 const NAME_RE = /^[A-Za-zÀ-ÖØ-öø-ÿ' -]{2,}$/; // lettres + espace/’/-
 const PHONE_RE = /^\d{6,}$/; // chiffres uniquement (>=6)
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/i;
 
 /* ───────── Page ───────── */
 export default function UsersPage() {
@@ -381,6 +382,9 @@ function UserModal(props: UserModalProps) {
       if (!NAME_RE.test(lastName))
         throw new Error("Nom invalide (lettres uniquement).");
 
+      if (!EMAIL_RE.test(email))
+        throw new Error("Email invalide.");
+
       // Téléphone: chiffres uniquement (>=6)
       if (!PHONE_RE.test(phone))
         throw new Error("Téléphone invalide (chiffres uniquement).");
@@ -416,6 +420,7 @@ function UserModal(props: UserModalProps) {
           firstName,
           lastName,
           roles,
+          email: email.trim(),
           phone,
           numStart: nStart,
           numEnd: nEnd,
@@ -423,8 +428,6 @@ function UserModal(props: UserModalProps) {
         };
         await props.onSubmit(payload);
       } else {
-        if (!/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/i.test(email))
-          throw new Error("Email invalide.");
         if (!password || password.length < 6)
           throw new Error("Mot de passe temporaire requis (≥ 6 caractères).");
 
@@ -432,7 +435,7 @@ function UserModal(props: UserModalProps) {
           firstName,
           lastName,
           roles,
-          email,
+          email: email.trim(),
           phone,
           numStart: nStart,
           numEnd: nEnd,
@@ -508,15 +511,13 @@ function UserModal(props: UserModalProps) {
               />
             </Field>
 
-            {!isEdit && (
-              <Field label="Email *">
-                <Input
-                  type="email"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                />
-              </Field>
-            )}
+            <Field label="Email *">
+              <Input
+                type="email"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+              />
+            </Field>
 
             <Field label="Téléphone *">
               <Input

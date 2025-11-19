@@ -231,6 +231,7 @@ export async function createSaisieService(
   input: CreateSaisieInput,
 ) {
   await assertAccessToChantier(auth, input.chantierId);
+  const isSupervisor = auth.roles.includes("SUPERVISEUR");
 
   if (!input.longueur || !input.diametre)
     throw new Error("Longueur et diamètre requis");
@@ -248,7 +249,9 @@ export async function createSaisieService(
   let numero: number;
   if (input.numero) {
     // Numéro fourni : valider la plage et l'unicité
-    await validateNumeroRange(auth.userId, input.numero);
+    if (!isSupervisor) {
+      await validateNumeroRange(auth.userId, input.numero);
+    }
     await validateNumeroUnique(
       auth.userId,
       input.chantierId,
@@ -437,7 +440,10 @@ export async function updateSaisieService(
 
   // Validation du numéro si fourni
   if (payload.numero !== undefined) {
-    await validateNumeroRange(auth.userId, payload.numero);
+    const isSupervisor = auth.roles.includes("SUPERVISEUR");
+    if (!isSupervisor) {
+      await validateNumeroRange(auth.userId, payload.numero);
+    }
     await validateNumeroUnique(
       auth.userId,
       s.chantierId,

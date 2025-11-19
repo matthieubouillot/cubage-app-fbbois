@@ -31,6 +31,7 @@ const UpdateSchema = z.object({
   firstName: z.string().regex(nameRegex),
   lastName: z.string().regex(nameRegex),
   roles: z.array(RoleEnum).min(1, "Au moins un rôle requis"),
+  email: z.string().email(),
   phone: z.string().regex(phoneRegex),
   numStart: z.number().int().nonnegative(),
   numEnd: z.number().int().nonnegative(),
@@ -156,6 +157,9 @@ export async function updateUser(req: Request, res: Response) {
       return res
         .status(409)
         .json({ error: "Plage num. déjà utilisée (chevauchement)" });
+    }
+    if (msg.includes("unique") && msg.includes("email")) {
+      return res.status(409).json({ error: "Email déjà utilisé" });
     }
     res
       .status(400)

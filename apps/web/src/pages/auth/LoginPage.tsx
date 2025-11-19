@@ -20,11 +20,15 @@ export default function LoginPage() {
         ? (user.roles as ("BUCHERON" | "SUPERVISEUR" | "DEBARDEUR")[])
         : [];
       setSession(token, user);
-      window.location.href =
-        roles.includes("SUPERVISEUR") ? "/home" : "/chantiers"; 
+      // Utiliser window.location.replace pour éviter le retour en arrière
+      window.location.replace(
+        roles.includes("SUPERVISEUR") ? "/home" : "/chantiers"
+      );
     } catch (e: any) {
-      setErr(e.message || "Identifiants invalides");
-    } finally {
+      console.error("Login error:", e);
+      // Afficher un message d'erreur plus détaillé
+      const errorMessage = e.message || "Erreur de connexion. Vérifiez que l'API est démarrée sur le port 4000.";
+      setErr(errorMessage);
       setLoading(false);
     }
   }

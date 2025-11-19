@@ -37,6 +37,7 @@ export type UpdateUserPayload = {
   firstName: string;
   lastName: string;
   roles: Role[];
+  email: string;
   phone: string;
   numStart: number;
   numEnd: number;

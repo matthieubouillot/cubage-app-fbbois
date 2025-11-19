@@ -7,13 +7,21 @@ function joinUrl(base: string, path: string) {
 }
 
 export async function api<T>(path: string, options: RequestInit = {}): Promise<T> {
+  // En développement, utiliser localhost:4000 par défaut si VITE_API_URL n'est pas défini
+  const isLocalhost =
+    typeof window !== "undefined" &&
+    (window.location.hostname === "localhost" ||
+      window.location.hostname === "127.0.0.1" ||
+      window.location.hostname === "0.0.0.0");
+  const defaultDevUrl = isLocalhost ? "http://localhost:4000" : "";
+  
   const base =
     API_URL ||
+    defaultDevUrl ||
     (typeof window !== "undefined" ? window.location.origin.replace(/\/$/, "") : "");
 
   if (typeof window !== "undefined" && !API_URL && !window.location.hostname.includes("localhost")) {
-    throw new Error(
-    );
+    throw new Error("VITE_API_URL doit être configuré en production");
   }
 
   const headers = new Headers(options.headers as HeadersInit);

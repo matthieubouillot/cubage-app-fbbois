@@ -1,51 +1,59 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { RefreshCw } from 'lucide-react';
 
 export default function UpdateNotification() {
   const [showUpdate, setShowUpdate] = useState(false);
+  const registrationRef = useRef<ServiceWorkerRegistration | null>(null);
 
   useEffect(() => {
-    // Vérifier s'il y a une nouvelle version du Service Worker
-    if ('serviceWorker' in navigator) {
-      navigator.serviceWorker.register('/sw.js').then(registration => {
-        // Vérifier les mises à jour toutes les 30 secondes
-        setInterval(() => {
-          registration.update();
-        }, 30000);
+    if (!import.meta.env.PROD || !('serviceWorker' in navigator)) {
+      return;
+    }
 
-        // Détecter quand un nouveau SW est en attente
-        registration.addEventListener('updatefound', () => {
-          const newWorker = registration.installing;
-          if (newWorker) {
-            newWorker.addEventListener('statechange', () => {
-              if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
-                // Une nouvelle version est disponible
-                setShowUpdate(true);
-              }
-            });
-          }
-        });
-      });
+    let intervalId: number | undefined;
+    let refreshing = false;
 
-      // Détecter quand le SW prend le contrôle (après un refresh)
-      let refreshing = false;
-      navigator.serviceWorker.addEventListener('controllerchange', () => {
-        if (!refreshing) {
-          refreshing = true;
-          window.location.reload();
+    const handleControllerChange = () => {
+      if (!refreshing) {
+        refreshing = true;
+        window.location.reload();
+      }
+    };
+
+    navigator.serviceWorker.addEventListener('controllerchange', handleControllerChange);
+
+    navigator.serviceWorker.register('/sw.js').then(registration => {
+      registrationRef.current = registration;
+
+      intervalId = window.setInterval(() => {
+        registration.update();
+      }, 30000);
+
+      registration.addEventListener('updatefound', () => {
+        const newWorker = registration.installing;
+        if (newWorker) {
+          newWorker.addEventListener('statechange', () => {
+            if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
+              setShowUpdate(true);
+            }
+          });
         }
       });
-    }
+    });
+
+    return () => {
+      if (intervalId) {
+        clearInterval(intervalId);
+      }
+      navigator.serviceWorker.removeEventListener('controllerchange', handleControllerChange);
+    };
   }, []);
 
   const handleUpdate = () => {
-    if ('serviceWorker' in navigator) {
-      navigator.serviceWorker.getRegistration().then(registration => {
-        if (registration && registration.waiting) {
-          // Dire au nouveau SW de prendre le contrôle immédiatement
-          registration.waiting.postMessage({ type: 'SKIP_WAITING' });
-        }
-      });
+    if (!import.meta.env.PROD) return;
+    const registration = registrationRef.current;
+    if (registration?.waiting) {
+      registration.waiting.postMessage({ type: 'SKIP_WAITING' });
     }
   };
 

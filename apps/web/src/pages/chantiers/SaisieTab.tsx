@@ -9,6 +9,7 @@ import {
 import { twMerge } from "tailwind-merge";
 import { useDebardeurSelection } from "../../hooks/useDebardeurSelection";
 import { listDebardeurs } from "../../features/users/api";
+import { getUser } from "../../features/auth/auth";
 
 /* ───────── helpers ───────── */
 function fmt3(v?: number | null) {
@@ -291,14 +292,16 @@ export default function SaisieTab({
           throw new Error("Le numéro doit être un nombre entier positif.");
         }
         
-        // Validation de la plage de numérotation de l'utilisateur
-        const { getUser } = await import("../../features/auth/auth");
+        // Validation de la plage de numérotation de l'utilisateur (sauf superviseur)
         const user = getUser();
-        if (user?.numStart && numero < user.numStart) {
-          throw new Error(`Le numéro doit être supérieur ou égal à ${user.numStart}.`);
-        }
-        if (user?.numEnd && numero > user.numEnd) {
-          throw new Error(`Le numéro doit être inférieur ou égal à ${user.numEnd}.`);
+        const isSupervisor = user?.roles?.includes("SUPERVISEUR");
+        if (!isSupervisor) {
+          if (user?.numStart && numero < user.numStart) {
+            throw new Error(`Le numéro doit être supérieur ou égal à ${user.numStart}.`);
+          }
+          if (user?.numEnd && numero > user.numEnd) {
+            throw new Error(`Le numéro doit être inférieur ou égal à ${user.numEnd}.`);
+          }
         }
       }
 
@@ -360,14 +363,15 @@ export default function SaisieTab({
           throw new Error("Le numéro doit être un nombre entier positif.");
         }
         
-        // Validation de la plage de numérotation de l'utilisateur
-        const { getUser } = await import("../../features/auth/auth");
         const user = getUser();
-        if (user?.numStart && numero < user.numStart) {
-          throw new Error(`Le numéro doit être supérieur ou égal à ${user.numStart}.`);
-        }
-        if (user?.numEnd && numero > user.numEnd) {
-          throw new Error(`Le numéro doit être inférieur ou égal à ${user.numEnd}.`);
+        const isSupervisor = user?.roles?.includes("SUPERVISEUR");
+        if (!isSupervisor) {
+          if (user?.numStart && numero < user.numStart) {
+            throw new Error(`Le numéro doit être supérieur ou égal à ${user.numStart}.`);
+          }
+          if (user?.numEnd && numero > user.numEnd) {
+            throw new Error(`Le numéro doit être inférieur ou égal à ${user.numEnd}.`);
+          }
         }
       }
 
