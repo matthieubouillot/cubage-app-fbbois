@@ -71,16 +71,16 @@ export default function StatsTable({
             <tr className="text-center">
               <td className="px-3 py-2 border-b border-gray-200 text-left">V. total</td>
               <td className="px-3 py-2 border-b border-gray-200 tabular-nums">
-                {fmt(userStats?.columns.ltV1.sum ?? stats?.columns.ltV1.sum)} m³
+                {fmt(isSupervisor ? stats?.columns.ltV1.sum : (userStats?.columns.ltV1.sum ?? stats?.columns.ltV1.sum))} m³
               </td>
               <td className="px-3 py-2 border-b border-gray-200 tabular-nums">
-                {fmt(userStats?.columns.between.sum ?? stats?.columns.between.sum)} m³
+                {fmt(isSupervisor ? stats?.columns.between.sum : (userStats?.columns.between.sum ?? stats?.columns.between.sum))} m³
               </td>
               <td className="px-3 py-2 border-b border-gray-200 tabular-nums">
-                {fmt(userStats?.columns.geV2.sum ?? stats?.columns.geV2.sum)} m³
+                {fmt(isSupervisor ? stats?.columns.geV2.sum : (userStats?.columns.geV2.sum ?? stats?.columns.geV2.sum))} m³
               </td>
               <td className="px-3 py-2 border-b border-gray-200 tabular-nums">
-                {fmt(userStats?.total.sum ?? stats?.total.sum)} m³
+                {fmt(isSupervisor ? stats?.total.sum : (userStats?.total.sum ?? stats?.total.sum))} m³
               </td>
             </tr>
             <tr className="text-center">
