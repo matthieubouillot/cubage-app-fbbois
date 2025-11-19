@@ -1,4 +1,4 @@
-const CACHE = "cubage-shell-v5";
+const CACHE = "cubage-shell-v6";
 const APP_SHELL = [
   "/",
   "/index.html",
@@ -10,6 +10,8 @@ self.addEventListener("install", (e) => {
   e.waitUntil(
     caches.open(CACHE).then((c) => c.addAll(APP_SHELL))
   );
+  // Prendre le contrôle immédiatement pour forcer la mise à jour
+  self.skipWaiting();
 });
 
 // Écouter les messages pour prendre le contrôle immédiatement
