@@ -83,12 +83,19 @@ export default function ChantierDetail() {
     const onOnline = () => setIsOffline(false);
     const onOffline = () => setIsOffline(true);
     
+    const onOfflineUpdated = () => {
+      // Recalculer les tableaux quand les données changent en mode offline
+      setMutTick((t) => t + 1);
+    };
+    
     window.addEventListener("cubage:reconnected", onReconnected as any);
+    window.addEventListener("cubage:offline-updated", onOfflineUpdated as any);
     window.addEventListener("online", onOnline);
     window.addEventListener("offline", onOffline);
     
     return () => {
       window.removeEventListener("cubage:reconnected", onReconnected as any);
+      window.removeEventListener("cubage:offline-updated", onOfflineUpdated as any);
       window.removeEventListener("online", onOnline);
       window.removeEventListener("offline", onOffline);
     };
@@ -130,6 +137,8 @@ export default function ChantierDetail() {
         setPerUserDailyTotals(null);
         return;
       }
+      // Petit délai pour s'assurer que le cache est à jour après une mutation
+      await new Promise(resolve => setTimeout(resolve, 50));
       try {
         const s = await getSaisiesStats(
           data.id,
