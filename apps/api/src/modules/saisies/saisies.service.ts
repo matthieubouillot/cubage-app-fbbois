@@ -329,7 +329,7 @@ export async function listSaisiesService(
 
   return prisma.saisie.findMany({
     where,
-    orderBy: [{ numero: "asc" }, { date: "asc" }],
+    orderBy: [{ date: "desc" }, { numero: "desc" }],
     select: {
       id: true,
       date: true,

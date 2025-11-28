@@ -42,6 +42,13 @@ export default function ChantierDetail() {
       }
     | null
   >(null);
+  const [perUserDailyTotals, setPerUserDailyTotals] = useState<
+    | {
+        users: { user: User; total: number }[];
+        grandTotal: number;
+      }
+    | null
+  >(null);
 
   // Mobile: cacher totaux/seuils par défaut, mémoriser dans le hash
   const [showStatsMobile, setShowStatsMobile] = useState<boolean>(() => {
@@ -119,6 +126,8 @@ export default function ChantierDetail() {
         setGlobalStats(null);
         setUserStats(null);
         setTodayUser(null);
+        setPerUserTotals(null);
+        setPerUserDailyTotals(null);
         return;
       }
       try {
@@ -249,9 +258,36 @@ export default function ChantierDetail() {
           (a.user.lastName || "").localeCompare(b.user.lastName || "")
         );
         setPerUserTotals({ users, columns, grandTotal: grand });
+
+        // Calculer les totaux journaliers (aujourd'hui) pour les superviseurs
+        // Réutiliser todayYmd déjà déclaré plus haut
+        const dailyUserMap: Record<string, { user: User; total: number }> = {};
+        let dailyGrand = 0;
+        for (const qg of (data.qualityGroups || [])) {
+          const qRows = await listSaisies(data.id, qg.id);
+          for (const r of qRows as SaisieRow[]) {
+            const uid = r.user?.id;
+            if (!uid || !r.user) continue;
+            const rowYmd = toLocalYmd(new Date(r.date));
+            if (rowYmd === todayYmd) {
+              const vol = Number(r.volumeCalc) || 0;
+              dailyGrand += vol;
+              if (!dailyUserMap[uid]) {
+                dailyUserMap[uid] = { user: r.user as User, total: 0 };
+              }
+              dailyUserMap[uid].total += vol;
+            }
+          }
+        }
+        const dailyUsers = Object.values(dailyUserMap).sort((a, b) =>
+          (a.user.lastName || "").localeCompare(b.user.lastName || "")
+        );
+        setPerUserDailyTotals({ users: dailyUsers, grandTotal: dailyGrand });
       } catch {
         setStats(null);
         setTodayUser(null);
+        setPerUserTotals(null);
+        setPerUserDailyTotals(null);
       }
     })();
 
@@ -937,6 +973,49 @@ export default function ChantierDetail() {
                     })}
                     <td className="px-3 py-2 border-t border-gray-200 tabular-nums font-semibold">
                       {perUserTotals.grandTotal.toLocaleString("fr-FR", { minimumFractionDigits: 3, maximumFractionDigits: 3 })} m³
+                    </td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
+      {/* Tableau superviseur: volumes journaliers par bûcheron */}
+      {isSuperviseur(getUser()) && (
+        <div className="flex justify-center mt-6">
+          <div className="inline-block bg-white rounded-xl border shadow-sm overflow-hidden">
+            <table className="text-sm">
+              <thead className="bg-gray-50">
+                <tr className="text-center">
+                  <th className="px-4 py-2 border-b border-gray-200 text-left text-gray-600 font-medium">Bûcheron</th>
+                  <th className="px-4 py-2 border-b border-gray-200 text-gray-600 font-medium">Volume journalier</th>
+                </tr>
+              </thead>
+              <tbody>
+                {perUserDailyTotals?.users.map((u) => (
+                  <tr key={u.user.id} className="text-center">
+                    <td className="px-4 py-2 border-b border-gray-200 text-left">
+                      {u.user.firstName} {u.user.lastName}
+                    </td>
+                    <td className="px-4 py-2 border-b border-gray-200 tabular-nums text-right">
+                      {u.total.toLocaleString("fr-FR", { minimumFractionDigits: 3, maximumFractionDigits: 3 })} m³
+                    </td>
+                  </tr>
+                ))}
+                {perUserDailyTotals && perUserDailyTotals.users.length > 0 && (
+                  <tr className="text-center bg-gray-50/60">
+                    <td className="px-4 py-2 border-t border-gray-200 text-left font-medium">Total</td>
+                    <td className="px-4 py-2 border-t border-gray-200 tabular-nums font-semibold text-right">
+                      {perUserDailyTotals.grandTotal.toLocaleString("fr-FR", { minimumFractionDigits: 3, maximumFractionDigits: 3 })} m³
+                    </td>
+                  </tr>
+                )}
+                {perUserDailyTotals && perUserDailyTotals.users.length === 0 && (
+                  <tr>
+                    <td colSpan={2} className="px-4 py-4 text-center text-gray-500">
+                      Aucune saisie aujourd'hui
                     </td>
                   </tr>
                 )}

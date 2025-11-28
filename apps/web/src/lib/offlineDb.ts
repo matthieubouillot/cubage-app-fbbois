@@ -189,6 +189,15 @@ export async function readCachedSaisiesList(
     );
     if (row) rows.push(row);
   }
+  // Trier par date décroissante puis numéro décroissant (même ordre que l'API)
+  rows.sort((a, b) => {
+    const dateA = new Date(a.date).getTime();
+    const dateB = new Date(b.date).getTime();
+    if (dateB !== dateA) {
+      return dateB - dateA; // Date décroissante
+    }
+    return (b.numero || 0) - (a.numero || 0); // Numéro décroissant
+  });
   return rows;
 }
 
