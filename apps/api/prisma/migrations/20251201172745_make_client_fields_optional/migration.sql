@@ -1,0 +1,6 @@
+-- AlterTable
+ALTER TABLE "Client" ALTER COLUMN "phone" SET DEFAULT '';
+ALTER TABLE "Client" ALTER COLUMN "street" SET DEFAULT '';
+ALTER TABLE "Client" ALTER COLUMN "postalCode" SET DEFAULT '';
+ALTER TABLE "Client" ALTER COLUMN "city" SET DEFAULT '';
+

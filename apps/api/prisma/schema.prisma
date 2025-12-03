@@ -67,10 +67,10 @@ model Client {
   firstName  String
   lastName   String
   email      String     @unique
-  phone      String
-  street     String
-  postalCode String
-  city       String
+  phone      String     @default("")
+  street     String     @default("")
+  postalCode String     @default("")
+  city       String     @default("")
   properties Property[]
   createdAt  DateTime   @default(now())
   chantiers  Chantier[]

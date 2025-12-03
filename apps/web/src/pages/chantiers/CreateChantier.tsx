@@ -165,10 +165,7 @@ export default function CreateChantier() {
       setError(null);
       
       // Validation des champs obligatoires
-      if (!formData.propertyId || formData.propertyId === '') {
-        setError('Veuillez sélectionner une propriété');
-        return;
-      }
+      // La propriété n'est plus obligatoire, on peut la choisir plus tard
       
       if (formData.bucheronIds.length === 0) {
         setError('Veuillez sélectionner au moins un bûcheron');
@@ -192,10 +189,15 @@ export default function CreateChantier() {
       console.log('🔍 customLotConventions:', customLotConventions);
       console.log('🔍 lotConventions à envoyer:', lotConventions);
       
-      const submitData = {
+      const submitData: any = {
         ...formData,
         lotConventions
       };
+      
+      // Ne pas envoyer propertyId s'il est vide (propriété optionnelle)
+      if (!submitData.propertyId || submitData.propertyId === '') {
+        delete submitData.propertyId;
+      }
       
       console.log('🔍 submitData:', submitData);
       
@@ -290,11 +292,10 @@ export default function CreateChantier() {
               
               {formData.clientId && (
                 <PropertySelector
-                  label="Propriété *"
+                  label="Propriété"
                   value={formData.propertyId || ''}
                   onChange={(propertyId) => setFormData(prev => ({ ...prev, propertyId }))}
                   properties={clients.find(c => c.id === formData.clientId)?.properties || []}
-                  required
                 />
               )}
             </div>

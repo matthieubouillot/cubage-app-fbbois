@@ -900,7 +900,21 @@ export default function ChantierDetail() {
       {(() => {
         const user = getUser();
         const isSupervisor = isSuperviseur(user);
-        return isSupervisor;
+        if (!isSupervisor) return false;
+        
+        // Vérifier si le client a toutes ses infos
+        const clientComplete = data.client && 
+          data.client.email && 
+          data.client.phone && 
+          data.client.street && 
+          data.client.postalCode && 
+          data.client.city;
+        
+        // Vérifier si le chantier a une propriété
+        const hasProperty = !!data.property;
+        
+        // Afficher les boutons seulement si le client est complet ET le chantier a une propriété
+        return clientComplete && hasProperty;
       })() && (     
      <div className="hidden md:flex justify-center gap-2 mb-2.5">
        <Link

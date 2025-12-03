@@ -500,32 +500,30 @@ function ClientModal(props: ClientModalProps) {
     try {
       setErr(null);
 
-      // Nettoyage inputs
+      // Validation : seulement prénom et nom obligatoires
       if (!NAME_RE.test(firstName))
         throw new Error("Prénom invalide (lettres uniquement).");
       if (!NAME_RE.test(lastName))
         throw new Error("Nom invalide (lettres uniquement).");
-      if (!/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/i.test(email))
+      
+      // Validation optionnelle : si email est rempli, il doit être valide
+      if (email.trim() && !/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/i.test(email))
         throw new Error("Email invalide.");
-      if (!PHONE_RE.test(phone))
+      
+      // Validation optionnelle : si téléphone est rempli, il doit être valide
+      if (phone.trim() && !PHONE_RE.test(phone))
         throw new Error("Téléphone invalide (chiffres uniquement).");
-      if (!street.trim())
-        throw new Error("Rue requise.");
-      if (!postalCode.trim())
-        throw new Error("Code postal requis.");
-      if (!city.trim())
-        throw new Error("Commune requise.");
 
       setBusy(true);
 
       const payload: CreateClientPayload | UpdateClientPayload = {
         firstName: firstName.trim(),
         lastName: lastName.trim(),
-        email: email.trim(),
-        phone: phone.trim(),
-        street: street.trim(),
-        postalCode: postalCode.trim(),
-        city: city.trim(),
+        email: email.trim() || "",
+        phone: phone.trim() || "",
+        street: street.trim() || "",
+        postalCode: postalCode.trim() || "",
+        city: city.trim() || "",
         properties: [],
       };
 
@@ -577,7 +575,7 @@ function ClientModal(props: ClientModalProps) {
               />
             </Field>
 
-            <Field label="Email *">
+            <Field label="Email">
               <Input
                 type="email"
                 value={email}
@@ -585,7 +583,7 @@ function ClientModal(props: ClientModalProps) {
               />
             </Field>
 
-            <Field label="Téléphone *">
+            <Field label="Téléphone">
               <Input
                 inputMode="numeric"
                 value={phone}
@@ -593,14 +591,14 @@ function ClientModal(props: ClientModalProps) {
               />
             </Field>
 
-            <Field label="Rue *">
+            <Field label="Rue">
               <Input
                 value={street}
                 onChange={(e) => setStreet(e.target.value)}
               />
             </Field>
 
-            <Field label="Code postal *">
+            <Field label="Code postal">
               <Input
                 inputMode="numeric"
                 value={postalCode}
@@ -608,7 +606,7 @@ function ClientModal(props: ClientModalProps) {
               />
             </Field>
 
-            <Field label="Commune *">
+            <Field label="Commune">
               <Input
                 value={city}
                 onChange={(e) => setCity(e.target.value)}

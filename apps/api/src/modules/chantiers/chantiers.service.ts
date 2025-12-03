@@ -263,7 +263,7 @@ export async function getChantierByIdService(
 export async function createChantierService(input: {
   numeroCoupe: string;
   clientId: string;
-  propertyId: string;
+  propertyId?: string;
   qualityGroupIds: string[];
   bucheronIds: string[];
   debardeurIds?: string[]; // Nouveau : IDs des débardeurs
@@ -279,7 +279,7 @@ export async function createChantierService(input: {
       data: {
         numeroCoupe: input.numeroCoupe,
         clientId: input.clientId,
-        propertyId: input.propertyId,
+        propertyId: input.propertyId || null,
         qualityGroups: {
           create: input.qualityGroupIds.map(qualityGroupId => {
             // Trouver le lot/convention pour ce quality group si disponible

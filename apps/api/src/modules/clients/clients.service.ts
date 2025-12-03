@@ -36,22 +36,22 @@ export type ClientDTO = {
 export type CreateClientPayload = {
   firstName: string;
   lastName: string;
-  email: string;
-  phone: string;
-  street: string;
-  postalCode: string;
-  city: string;
+  email?: string;
+  phone?: string;
+  street?: string;
+  postalCode?: string;
+  city?: string;
   properties?: CreatePropertyPayload[];
 };
 
 export type UpdateClientPayload = {
   firstName: string;
   lastName: string;
-  email: string;
-  phone: string;
-  street: string;
-  postalCode: string;
-  city: string;
+  email?: string;
+  phone?: string;
+  street?: string;
+  postalCode?: string;
+  city?: string;
   properties?: CreatePropertyPayload[];
 };
 
@@ -114,29 +114,39 @@ export async function getClientByIdService(id: string) {
 export async function createClientService(input: CreateClientPayload) {
   if (!NAME_RE.test(input.firstName)) throw new Error("Prénom invalide");
   if (!NAME_RE.test(input.lastName)) throw new Error("Nom invalide");
-  if (!PHONE_RE.test(input.phone)) throw new Error("Téléphone invalide");
-  if (!input.email?.trim()) throw new Error("Email requis");
-  if (!input.street?.trim()) throw new Error("Rue requise");
-  if (!input.postalCode?.trim()) throw new Error("Code postal requis");
-  if (!input.city?.trim()) throw new Error("Commune requise");
-
-  // Vérifier si l'email existe déjà
-  const existingClient = await prisma.client.findUnique({
-    where: { email: input.email.toLowerCase().trim() },
-  });
-  if (existingClient) {
-    throw new Error("Un client avec cet email existe déjà");
+  
+  // Générer un email unique temporaire si non fourni
+  let finalEmail: string;
+  if (input.email?.trim()) {
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/i.test(input.email.trim())) {
+      throw new Error("Email invalide");
+    }
+    const existingClient = await prisma.client.findUnique({
+      where: { email: input.email.toLowerCase().trim() },
+    });
+    if (existingClient) {
+      throw new Error("Un client avec cet email existe déjà");
+    }
+    finalEmail = input.email.toLowerCase().trim();
+  } else {
+    // Générer un email temporaire unique
+    finalEmail = `temp_${Date.now()}_${Math.random().toString(36).slice(2, 9)}@temp.com`;
+  }
+  
+  // Validation optionnelle : si téléphone est rempli, il doit être valide
+  if (input.phone?.trim() && !PHONE_RE.test(input.phone)) {
+    throw new Error("Téléphone invalide");
   }
 
   const client = await prisma.client.create({
     data: {
       firstName: input.firstName.trim(),
       lastName: input.lastName.trim(),
-      email: input.email.toLowerCase().trim(),
-      phone: input.phone.trim(),
-      street: input.street.trim(),
-      postalCode: input.postalCode.trim(),
-      city: input.city.trim(),
+      email: finalEmail,
+      phone: input.phone?.trim() || "",
+      street: input.street?.trim() || "",
+      postalCode: input.postalCode?.trim() || "",
+      city: input.city?.trim() || "",
       properties: {
         create: input.properties?.map(p => ({
           commune: p.commune?.trim() || null,
@@ -177,22 +187,46 @@ export async function createClientService(input: CreateClientPayload) {
 export async function updateClientService(id: string, input: UpdateClientPayload) {
   if (!NAME_RE.test(input.firstName)) throw new Error("Prénom invalide");
   if (!NAME_RE.test(input.lastName)) throw new Error("Nom invalide");
-  if (!PHONE_RE.test(input.phone)) throw new Error("Téléphone invalide");
-  if (!input.email?.trim()) throw new Error("Email requis");
-  if (!input.street?.trim()) throw new Error("Rue requise");
-  if (!input.postalCode?.trim()) throw new Error("Code postal requis");
-  if (!input.city?.trim()) throw new Error("Commune requise");
-
-  // Vérifier si l'email existe déjà pour un autre client
-  const existingClient = await prisma.client.findFirst({
-    where: {
-      email: input.email.toLowerCase().trim(),
-      NOT: { id },
-    },
-  });
-  if (existingClient) {
-    throw new Error("Un client avec cet email existe déjà");
+  
+  // Validation optionnelle : si email est rempli, il doit être valide et unique
+  if (input.email?.trim()) {
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/i.test(input.email.trim())) {
+      throw new Error("Email invalide");
+    }
+    const existingClient = await prisma.client.findFirst({
+      where: {
+        email: input.email.toLowerCase().trim(),
+        NOT: { id },
+      },
+    });
+    if (existingClient) {
+      throw new Error("Un client avec cet email existe déjà");
+    }
   }
+  
+  // Validation optionnelle : si téléphone est rempli, il doit être valide
+  if (input.phone?.trim() && !PHONE_RE.test(input.phone)) {
+    throw new Error("Téléphone invalide");
+  }
+
+  // Récupérer le client existant pour préserver les valeurs non fournies
+  const existingClient = await prisma.client.findUnique({
+    where: { id },
+    select: { email: true, phone: true, street: true, postalCode: true, city: true },
+  });
+  
+  if (!existingClient) {
+    throw new Error("Client introuvable");
+  }
+
+  // Utiliser les valeurs fournies ou conserver les existantes
+  const finalEmail = input.email?.trim() 
+    ? input.email.toLowerCase().trim() 
+    : existingClient.email;
+  const finalPhone = input.phone?.trim() || existingClient.phone;
+  const finalStreet = input.street?.trim() || existingClient.street;
+  const finalPostalCode = input.postalCode?.trim() || existingClient.postalCode;
+  const finalCity = input.city?.trim() || existingClient.city;
 
   // Supprimer les anciennes propriétés et créer les nouvelles
   await prisma.property.deleteMany({ where: { clientId: id } });
@@ -202,11 +236,11 @@ export async function updateClientService(id: string, input: UpdateClientPayload
     data: {
       firstName: input.firstName.trim(),
       lastName: input.lastName.trim(),
-      email: input.email.toLowerCase().trim(),
-      phone: input.phone.trim(),
-      street: input.street.trim(),
-      postalCode: input.postalCode.trim(),
-      city: input.city.trim(),
+      email: finalEmail,
+      phone: finalPhone,
+      street: finalStreet,
+      postalCode: finalPostalCode,
+      city: finalCity,
       properties: {
         create: input.properties?.map(p => ({
           commune: p.commune?.trim() || null,

@@ -14,7 +14,7 @@ import {
 const CreateChantierSchema = z.object({
   numeroCoupe: z.string().regex(/^\d+$/, "Uniquement des chiffres").min(1),
   clientId: z.string().uuid("ID client invalide"),
-  propertyId: z.string().uuid("ID propriété invalide"),
+  propertyId: z.string().uuid("ID propriété invalide").optional(),
   qualityGroupIds: z.array(z.string().uuid()).min(1, "Choisis au moins un groupe de qualité"),
   bucheronIds: z.array(z.string().uuid()).min(1, "Choisis au moins un bûcheron"),
   debardeurIds: z.array(z.string().uuid()).min(1, "Choisis au moins un débardeur"),
