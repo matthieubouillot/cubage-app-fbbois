@@ -913,8 +913,17 @@ export default function ChantierDetail() {
         // Vérifier si le chantier a une propriété
         const hasProperty = !!data.property;
         
-        // Afficher les boutons seulement si le client est complet ET le chantier a une propriété
-        return clientComplete && hasProperty;
+        // Vérifier que tous les qualityGroups ont un lot ET une convention
+        const allQualityGroupsHaveLotAndConvention = data.qualityGroups && 
+          data.qualityGroups.length > 0 &&
+          data.qualityGroups.every(qg => {
+            const lot = (qg as any).lot;
+            const convention = (qg as any).convention;
+            return lot && lot.trim() !== '' && convention && convention.trim() !== '';
+          });
+        
+        // Afficher les boutons seulement si toutes les conditions sont remplies
+        return clientComplete && hasProperty && allQualityGroupsHaveLotAndConvention;
       })() && (     
      <div className="hidden md:flex justify-center gap-2 mb-2.5">
        <Link
