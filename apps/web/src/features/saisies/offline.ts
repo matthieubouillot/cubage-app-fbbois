@@ -31,16 +31,9 @@ export async function listDebardeursOffline(): Promise<UserDTO[]> {
       await cacheDebardeursList(rows);
       return rows;
     } catch {
-      // fallback to cache if API fails
-      const cached = await readCachedDebardeursList();
-      if (cached && cached.length > 0) {
-        return cached as UserDTO[];
-      }
-      // If cache is empty and API failed, return empty array
-      return [];
+      // fallback to cache
     }
   }
-  // Offline: read from cache
   const cached = await readCachedDebardeursList();
   return (cached as UserDTO[] | null) ?? [];
 }
