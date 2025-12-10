@@ -8,6 +8,8 @@ import {
   removeCachedSaisie,
   isOnline,
   readCachedSaisie,
+  cacheDebardeursList,
+  readCachedDebardeursList,
 } from "../../lib/offlineDb";
 import {
   httpListSaisies as httpList,
@@ -16,8 +18,32 @@ import {
   httpDeleteSaisie as httpDelete,
   httpGetSaisiesStats,
 } from "./http";
+import { listDebardeurs as httpListDebardeurs } from "../users/api";
 import type { SaisieRow, SaisieStats } from "./types";
+import type { UserDTO } from "../users/api";
 import { getUser } from "../auth/auth";
+
+// List debardeurs with online->cache, offline->cache strategy
+export async function listDebardeursOffline(): Promise<UserDTO[]> {
+  if (isOnline()) {
+    try {
+      const rows = await httpListDebardeurs();
+      await cacheDebardeursList(rows);
+      return rows;
+    } catch {
+      // fallback to cache if API fails
+      const cached = await readCachedDebardeursList();
+      if (cached && cached.length > 0) {
+        return cached as UserDTO[];
+      }
+      // If cache is empty and API failed, return empty array
+      return [];
+    }
+  }
+  // Offline: read from cache
+  const cached = await readCachedDebardeursList();
+  return (cached as UserDTO[] | null) ?? [];
+}
 
 // List with online->cache, offline->cache strategy
 export async function listSaisiesOffline(
@@ -110,11 +136,10 @@ export async function createSaisieOffline(payload: {
         }
       }
       
-      // Si pas trouvé dans localStorage, essayer via API (peut fonctionner si on vient de se déconnecter)
+      // Si pas trouvé dans localStorage, essayer via cache offline
       if (!debardeur) {
-        const { listUsers } = await import("../users/api");
-        const users = await listUsers();
-        const debardeurUser = users.find((u: any) => u.id === payload.debardeurId && u.roles.includes('DEBARDEUR'));
+        const debardeurs = await listDebardeursOffline();
+        const debardeurUser = debardeurs.find((u: any) => u.id === payload.debardeurId);
         if (debardeurUser) {
           debardeur = {
             id: debardeurUser.id,
@@ -214,11 +239,10 @@ export async function updateSaisieOffline(
           }
         }
         
-        // Si pas trouvé dans localStorage, essayer via API
+        // Si pas trouvé dans localStorage, essayer via cache offline
         if (!debardeur) {
-          const { listUsers } = await import("../users/api");
-          const users = await listUsers();
-          const debardeurUser = users.find((u: any) => u.id === payload.debardeurId && u.roles.includes('DEBARDEUR'));
+          const debardeurs = await listDebardeursOffline();
+          const debardeurUser = debardeurs.find((u: any) => u.id === payload.debardeurId);
           if (debardeurUser) {
             debardeur = {
               id: debardeurUser.id,

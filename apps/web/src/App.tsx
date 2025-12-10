@@ -17,6 +17,7 @@ import ClientsPage from "./pages/clients/ClientsPage";
 import { getUser, isAuthenticated } from "./features/auth/auth";
 import { syncOfflineQueueNow } from "./features/saisies/api";
 import { syncChantiersOfflineNow } from "./features/chantiers/api";
+import { listDebardeursOffline } from "./features/saisies/offline";
 
 export default function App() {
   // Empêche l’historique de ré-afficher une page protégée après logout (back nav)
@@ -36,8 +37,20 @@ export default function App() {
         .then(() => window.dispatchEvent(new Event("cubage:reconnected")))
         .catch(() => {});
     };
+    // Précharger les débardeurs en cache si on est en ligne
+    const preloadDebardeurs = () => {
+      if (isAuthenticated() && navigator.onLine) {
+        listDebardeursOffline().catch(() => {
+          // Ignorer les erreurs silencieusement
+        });
+      }
+    };
     doSync();
-    const onOnline = () => doSync();
+    preloadDebardeurs();
+    const onOnline = () => {
+      doSync();
+      preloadDebardeurs();
+    };
     window.addEventListener("online", onOnline);
     return () => window.removeEventListener("pageshow", onPageShow);
   }, []);

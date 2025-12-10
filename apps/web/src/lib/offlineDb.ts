@@ -48,13 +48,22 @@ interface CubageDB extends DBSchema {
       createdAt: number;
     };
   };
+  // Cached debardeurs list
+  debardeurs: {
+    key: string; // debardeurId
+    value: any;
+  };
+  debardeursIndex: {
+    key: string; // constant key "list"
+    value: { ids: string[]; updatedAt: number };
+  };
 }
 
 let dbPromise: Promise<IDBPDatabase<CubageDB>> | null = null;
 
 export function getDB() {
   if (!dbPromise) {
-    dbPromise = openDB<CubageDB>("cubage-offline", 2, {
+    dbPromise = openDB<CubageDB>("cubage-offline", 3, {
       upgrade(db) {
         if (!db.objectStoreNames.contains("saisies")) {
           const store = db.createObjectStore("saisies");
@@ -83,6 +92,13 @@ export function getDB() {
             autoIncrement: true,
             keyPath: "id",
           });
+        }
+        // Debardeurs stores (v3)
+        if (!db.objectStoreNames.contains("debardeurs")) {
+          db.createObjectStore("debardeurs");
+        }
+        if (!db.objectStoreNames.contains("debardeursIndex")) {
+          db.createObjectStore("debardeursIndex");
         }
       },
     });
@@ -322,6 +338,36 @@ export async function readChantiersQueue() {
 export async function clearChantierQueueItem(id: number) {
   const db = await getDB();
   await db.delete("chantiersQueue", id);
+}
+
+// ───── Debardeurs offline helpers ─────
+
+export async function cacheDebardeursList(rows: any[]) {
+  const db = await getDB();
+  const tx = db.transaction(["debardeurs", "debardeursIndex"], "readwrite");
+  const ids: string[] = [];
+  for (const r of rows) {
+    ids.push(r.id);
+    await tx.db.put("debardeurs", r, r.id);
+  }
+  await tx.db.put(
+    "debardeursIndex",
+    { ids, updatedAt: Date.now() },
+    "list",
+  );
+  await tx.done;
+}
+
+export async function readCachedDebardeursList() {
+  const db = await getDB();
+  const meta = await db.get("debardeursIndex", "list");
+  if (!meta) return null;
+  const rows: any[] = [];
+  for (const id of (meta as any).ids || []) {
+    const row = await db.get("debardeurs", id);
+    if (row) rows.push(row);
+  }
+  return rows;
 }
 
 
