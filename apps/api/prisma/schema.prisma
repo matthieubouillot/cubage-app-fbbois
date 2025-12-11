@@ -293,14 +293,15 @@ model DebardeurAssignment {
 ///  * FICHE CHANTIER (données saisies manuellement)
 ///  * ───────────────────────────────────────────────────────────────
 model ChantierFiche {
-  id              String   @id @default(uuid())
-  chantierId      String   @unique
-  aFacturerValues Json     // Record<string, { abattage: string; debardage: string }>
-  fraisGestionValues Json  // Record<number, string>
-  prixUHT         Json     // { aba: string; deb: string }
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
-  chantier        Chantier @relation(fields: [chantierId], references: [id], onDelete: Cascade)
+  id                String   @id @default(uuid())
+  chantierId        String   @unique
+  aFacturerValues   Json     // Record<string, { abattage: string; debardage: string }>
+  fraisGestionValues Json    // Record<number, string>
+  prixUHT           Json     // { aba: string; deb: string }
+  volumeMoulinValues Json?   // Record<string, string> - volumes modifiés pour la scierie Moulin
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+  chantier          Chantier @relation(fields: [chantierId], references: [id], onDelete: Cascade)
 
   @@index([chantierId])
 }

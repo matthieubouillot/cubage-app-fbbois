@@ -192,6 +192,7 @@ export type ChantierFicheData = {
   aFacturerValues: Record<string, { abattage: string; debardage: string }>;
   fraisGestionValues: Record<string, string>; // Les clés sont des strings dans l'API
   prixUHT: { aba: string; deb: string };
+  volumeMoulinValues?: Record<string, string>; // Les clés sont des strings dans l'API
 };
 
 export async function getChantierFiche(chantierId: string): Promise<ChantierFicheData | null> {

@@ -4,6 +4,7 @@ export type ChantierFicheData = {
   aFacturerValues: Record<string, { abattage: string; debardage: string }>;
   fraisGestionValues: Record<number, string>;
   prixUHT: { aba: string; deb: string };
+  volumeMoulinValues?: Record<string, string>;
 };
 
 export async function listChantiersService(user: {
@@ -702,6 +703,7 @@ export async function getChantierFicheService(chantierId: string): Promise<Chant
       aFacturerValues: fiche.aFacturerValues as Record<string, { abattage: string; debardage: string }>,
       fraisGestionValues: fiche.fraisGestionValues as Record<number, string>,
       prixUHT: fiche.prixUHT as { aba: string; deb: string },
+      volumeMoulinValues: fiche.volumeMoulinValues as Record<string, string> | undefined,
     };
   } catch (error) {
     console.error("Error in getChantierFicheService:", error);
@@ -721,11 +723,13 @@ export async function saveChantierFicheService(
         aFacturerValues: data.aFacturerValues,
         fraisGestionValues: data.fraisGestionValues,
         prixUHT: data.prixUHT,
+        volumeMoulinValues: data.volumeMoulinValues ?? null,
       },
       update: {
         aFacturerValues: data.aFacturerValues,
         fraisGestionValues: data.fraisGestionValues,
         prixUHT: data.prixUHT,
+        volumeMoulinValues: data.volumeMoulinValues ?? null,
       },
     });
 
@@ -733,6 +737,7 @@ export async function saveChantierFicheService(
       aFacturerValues: fiche.aFacturerValues as Record<string, { abattage: string; debardage: string }>,
       fraisGestionValues: fiche.fraisGestionValues as Record<number, string>,
       prixUHT: fiche.prixUHT as { aba: string; deb: string },
+      volumeMoulinValues: fiche.volumeMoulinValues as Record<string, string> | undefined,
     };
   } catch (error) {
     console.error("Error in saveChantierFicheService:", error);

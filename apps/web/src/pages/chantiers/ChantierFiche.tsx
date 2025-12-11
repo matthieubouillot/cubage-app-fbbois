@@ -7,8 +7,7 @@ import MobileBack from "../../components/MobileBack";
 
 type TableRow = {
   scierie: string;
-  produit: string;
-  lot: string;
+  lot: string; // Premier lot trouvé ou vide
   volume: number;
   entrepriseIds: string[]; // IDs des entreprises associées à cette scierie
 };
@@ -38,7 +37,6 @@ type EntrepriseScierieData = {
   entrepriseId: string;
   entrepriseName: string;
   scierie: string;
-  produit: string;
   volumes: {
     abattage: number;
     debardage: number;
@@ -70,10 +68,12 @@ export default function ChantierFiche() {
   const [entrepriseData, setEntrepriseData] = useState<EntrepriseData[]>([]);
   const [loadingEntreprises, setLoadingEntreprises] = useState(true);
   const [users, setUsers] = useState<UserDTO[]>([]);
-  // État pour les valeurs saisies manuellement dans "A facturer" (clé: entrepriseId_scierie_produit)
+  // État pour les valeurs saisies manuellement dans "A facturer" (clé: entrepriseId_scierie)
   const [aFacturerValues, setAFacturerValues] = useState<Record<string, { abattage: string; debardage: string }>>({});
   // État pour les frais de gestion (clé: index de la ligne dans tableData)
   const [fraisGestionValues, setFraisGestionValues] = useState<Record<number, string>>({});
+  // État pour le volume modifiable de la scierie "Moulin" (clé: index de la ligne dans tableData)
+  const [volumeMoulinValues, setVolumeMoulinValues] = useState<Record<number, string>>({});
   // État pour les prix UHT
   const [prixUHT, setPrixUHT] = useState<{ aba: string; deb: string }>({ aba: "", deb: "" });
   // État pour les antériorités par entreprise (clé: entrepriseId, valeur: { abattage: number, debardage: number })
@@ -104,11 +104,21 @@ export default function ChantierFiche() {
           });
           setFraisGestionValues(fraisGestion);
           setPrixUHT(ficheData.prixUHT || { aba: "", deb: "" });
+          // Convertir les clés numériques en nombres pour volumeMoulinValues
+          const volumeMoulin: Record<number, string> = {};
+          Object.keys(ficheData.volumeMoulinValues || {}).forEach((key) => {
+            const value = ficheData.volumeMoulinValues![Number(key)];
+            if (value !== undefined) {
+              volumeMoulin[Number(key)] = value;
+            }
+          });
+          setVolumeMoulinValues(volumeMoulin);
         } else {
           // Initialiser avec des valeurs vides si la fiche n'existe pas encore
           setAFacturerValues({});
           setFraisGestionValues({});
           setPrixUHT({ aba: "", deb: "" });
+          setVolumeMoulinValues({});
         }
       } catch (e) {
         console.error("Erreur lors du chargement de la fiche chantier:", e);
@@ -116,6 +126,7 @@ export default function ChantierFiche() {
         setAFacturerValues({});
         setFraisGestionValues({});
         setPrixUHT({ aba: "", deb: "" });
+        setVolumeMoulinValues({});
       } finally {
         // Attendre un peu avant de permettre la sauvegarde pour éviter de sauvegarder les valeurs initiales
         setTimeout(() => {
@@ -139,17 +150,24 @@ export default function ChantierFiche() {
         fraisGestion[key] = fraisGestionValues[Number(key)];
       });
 
+      // Convertir les clés numériques en strings pour volumeMoulinValues
+      const volumeMoulin: Record<string, string> = {};
+      Object.keys(volumeMoulinValues).forEach((key) => {
+        volumeMoulin[key] = volumeMoulinValues[Number(key)];
+      });
+
       await saveChantierFiche(id, {
         aFacturerValues: aFacturerValues || {},
         fraisGestionValues: fraisGestion,
         prixUHT: prixUHT || { aba: "", deb: "" },
+        volumeMoulinValues: volumeMoulin,
       });
     } catch (e) {
       console.error("Erreur lors de la sauvegarde de la fiche chantier:", e);
     } finally {
       setSaving(false);
     }
-  }, [id, aFacturerValues, fraisGestionValues, prixUHT, isInitialLoad]);
+    }, [id, aFacturerValues, fraisGestionValues, prixUHT, volumeMoulinValues, isInitialLoad]);
 
   // Sauvegarder automatiquement avec debounce (après 1 seconde d'inactivité)
   useEffect(() => {
@@ -160,7 +178,7 @@ export default function ChantierFiche() {
     }, 1000);
 
     return () => clearTimeout(timeoutId);
-  }, [id, aFacturerValues, fraisGestionValues, prixUHT, saveFicheData, isInitialLoad]);
+  }, [id, aFacturerValues, fraisGestionValues, prixUHT, volumeMoulinValues, saveFicheData, isInitialLoad]);
 
   // Charger les antériorités depuis les chantiers précédents
   useEffect(() => {
@@ -343,6 +361,26 @@ export default function ChantierFiche() {
     loadUsers();
   }, []);
 
+  // Fonction helper pour obtenir le volume correct d'une scierie (avec volume modifié si Moulin)
+  const getVolumeForScierie = useCallback((scierieName: string, originalVolume: number, tableDataIndex?: number): number => {
+    const isMoulin = scierieName.toLowerCase().includes("moulin");
+    if (isMoulin && tableDataIndex !== undefined && volumeMoulinValues[tableDataIndex]) {
+      // Normaliser la valeur (remplacer virgule par point pour le parsing)
+      const normalizedValue = volumeMoulinValues[tableDataIndex].replace(',', '.');
+      const modified = parseFloat(normalizedValue);
+      return !isNaN(modified) ? modified : originalVolume;
+    }
+    return originalVolume;
+  }, [volumeMoulinValues]);
+
+  // Fonction helper pour obtenir le volume correct d'une scierie depuis tableData
+  const getVolumeFromTableData = useCallback((scierieName: string): number => {
+    const row = tableData.find(r => r.scierie === scierieName);
+    if (!row) return 0;
+    const index = tableData.findIndex(r => r.scierie === scierieName);
+    return getVolumeForScierie(scierieName, row.volume, index);
+  }, [tableData, getVolumeForScierie]);
+
   // Charger les données du tableau pour chaque qualityGroup
   useEffect(() => {
     if (!data || !id || users.length === 0) {
@@ -366,6 +404,9 @@ export default function ChantierFiche() {
           }
         });
 
+        // Map pour regrouper par scierie
+        const scierieMap = new Map<string, { volume: number; entrepriseIds: Set<string>; lot: string }>();
+
         for (const qg of data.qualityGroups || []) {
           // Récupérer toutes les saisies pour ce qualityGroup
           const saisies = await listSaisies(id, qg.id);
@@ -377,6 +418,7 @@ export default function ChantierFiche() {
 
           // Récupérer le lot
           const lot = qg.lot || "";
+          const scierieName = qg.scieur.name;
 
           // Collecter les IDs des entreprises associées à cette scierie
           const entrepriseIdsSet = new Set<string>();
@@ -397,23 +439,41 @@ export default function ChantierFiche() {
             }
           }
 
-          rows.push({
-            scierie: qg.scieur.name,
-            produit: qg.qualite.name,
-            lot: lot,
-            volume: volumeTotal,
-            entrepriseIds: Array.from(entrepriseIdsSet),
-          });
+          // Regrouper par scierie
+          const existing = scierieMap.get(scierieName);
+          if (existing) {
+            existing.volume += volumeTotal;
+            entrepriseIdsSet.forEach(id => existing.entrepriseIds.add(id));
+            // Garder le premier lot non vide trouvé
+            if (!existing.lot && lot) {
+              existing.lot = lot;
+            }
+          } else {
+            scierieMap.set(scierieName, {
+              volume: volumeTotal,
+              entrepriseIds: new Set(entrepriseIdsSet),
+              lot: lot,
+            });
+          }
         }
 
-        // Trier les lignes par scierie puis par produit (même ordre que dans le tableau "A facturer")
-        rows.sort((a, b) => {
-          const scierieCompare = a.scierie.localeCompare(b.scierie);
-          if (scierieCompare !== 0) return scierieCompare;
-          return a.produit.localeCompare(b.produit);
+        // Convertir le map en tableau
+        scierieMap.forEach((data, scierie) => {
+          rows.push({
+            scierie,
+            lot: data.lot,
+            volume: data.volume,
+            entrepriseIds: Array.from(data.entrepriseIds),
+          });
         });
 
+        // Trier les lignes par scierie
+        rows.sort((a, b) => a.scierie.localeCompare(b.scierie));
+
         setTableData(rows);
+        
+        // Recalculer les données d'entreprise si volumeMoulinValues change
+        // (déclenché par le useEffect qui dépend de volumeMoulinValues)
       } catch (e: any) {
         console.error("Erreur lors du chargement des données du tableau:", e);
       } finally {
@@ -424,9 +484,9 @@ export default function ChantierFiche() {
     loadTableData();
   }, [data, id, users]);
 
-  // Charger les données par entreprise (abattage)
+  // Charger les données par entreprise (abattage) - recalculé quand volumeMoulinValues change
   useEffect(() => {
-    if (!data || !id || users.length === 0) {
+    if (!data || !id || users.length === 0 || tableData.length === 0) {
       setLoadingEntrepriseAbattage(false);
       return;
     }
@@ -449,6 +509,15 @@ export default function ChantierFiche() {
           }
         });
 
+        // Créer un map scierie -> volume original pour calculer le ratio de modification
+        const scierieOriginalVolumes = new Map<string, number>();
+        const scierieModifiedVolumes = new Map<string, number>();
+        tableData.forEach((row, idx) => {
+          scierieOriginalVolumes.set(row.scierie, row.volume);
+          const modified = getVolumeForScierie(row.scierie, row.volume, idx);
+          scierieModifiedVolumes.set(row.scierie, modified);
+        });
+
         const entrepriseMap = new Map<string, { name: string; volume: number }>();
 
         // Calculer le volume total de toutes les entreprises
@@ -457,22 +526,28 @@ export default function ChantierFiche() {
         // Parcourir tous les qualityGroups et leurs saisies
         for (const qg of data.qualityGroups || []) {
           const saisies = await listSaisies(id, qg.id);
+          const scierieName = qg.scieur.name;
+          const originalScierieVolume = scierieOriginalVolumes.get(scierieName) || 0;
+          const modifiedScierieVolume = scierieModifiedVolumes.get(scierieName) || originalScierieVolume;
+          const volumeRatio = originalScierieVolume > 0 ? modifiedScierieVolume / originalScierieVolume : 1;
           
           for (const saisie of saisies) {
             if (saisie.user?.id) {
-              const volume = Number(saisie.volumeCalc) || 0;
+              const originalVolume = Number(saisie.volumeCalc) || 0;
+              // Appliquer le ratio si c'est Moulin
+              const adjustedVolume = originalVolume * volumeRatio;
               const userCompany = userToCompanyMap.get(saisie.user.id);
               
               if (userCompany) {
-                totalVolume += volume;
+                totalVolume += adjustedVolume;
                 
                 const existing = entrepriseMap.get(userCompany.id);
                 if (existing) {
-                  existing.volume += volume;
+                  existing.volume += adjustedVolume;
                 } else {
                   entrepriseMap.set(userCompany.id, {
                     name: userCompany.name,
-                    volume: volume,
+                    volume: adjustedVolume,
                   });
                 }
               }
@@ -504,11 +579,11 @@ export default function ChantierFiche() {
     }
 
     loadEntrepriseAbattageData();
-  }, [data, id, users]);
+  }, [data, id, users, tableData, getVolumeForScierie]);
 
-  // Charger les données par entreprise (débardage)
+  // Charger les données par entreprise (débardage) - recalculé quand volumeMoulinValues change
   useEffect(() => {
-    if (!data || !id || users.length === 0) {
+    if (!data || !id || users.length === 0 || tableData.length === 0) {
       setLoadingEntrepriseDebardage(false);
       return;
     }
@@ -531,6 +606,15 @@ export default function ChantierFiche() {
           }
         });
 
+        // Créer un map scierie -> volume original pour calculer le ratio de modification
+        const scierieOriginalVolumes = new Map<string, number>();
+        const scierieModifiedVolumes = new Map<string, number>();
+        tableData.forEach((row, idx) => {
+          scierieOriginalVolumes.set(row.scierie, row.volume);
+          const modified = getVolumeForScierie(row.scierie, row.volume, idx);
+          scierieModifiedVolumes.set(row.scierie, modified);
+        });
+
         const entrepriseMap = new Map<string, { name: string; volume: number }>();
 
         // Calculer le volume total de toutes les entreprises
@@ -539,22 +623,28 @@ export default function ChantierFiche() {
         // Parcourir tous les qualityGroups et leurs saisies
         for (const qg of data.qualityGroups || []) {
           const saisies = await listSaisies(id, qg.id);
+          const scierieName = qg.scieur.name;
+          const originalScierieVolume = scierieOriginalVolumes.get(scierieName) || 0;
+          const modifiedScierieVolume = scierieModifiedVolumes.get(scierieName) || originalScierieVolume;
+          const volumeRatio = originalScierieVolume > 0 ? modifiedScierieVolume / originalScierieVolume : 1;
           
           for (const saisie of saisies) {
             if (saisie.debardeur?.id) {
-              const volume = Number(saisie.volumeCalc) || 0;
+              const originalVolume = Number(saisie.volumeCalc) || 0;
+              // Appliquer le ratio si c'est Moulin
+              const adjustedVolume = originalVolume * volumeRatio;
               const debardeurCompany = userToCompanyMap.get(saisie.debardeur.id);
               
               if (debardeurCompany) {
-                totalVolume += volume;
+                totalVolume += adjustedVolume;
                 
                 const existing = entrepriseMap.get(debardeurCompany.id);
                 if (existing) {
-                  existing.volume += volume;
+                  existing.volume += adjustedVolume;
                 } else {
                   entrepriseMap.set(debardeurCompany.id, {
                     name: debardeurCompany.name,
-                    volume: volume,
+                    volume: adjustedVolume,
                   });
                 }
               }
@@ -585,11 +675,11 @@ export default function ChantierFiche() {
     }
 
     loadEntrepriseDebardageData();
-  }, [data, id, users]);
+  }, [data, id, users, tableData, getVolumeForScierie]);
 
-  // Charger les données par entreprise
+  // Charger les données par entreprise - recalculé quand volumeMoulinValues change
   useEffect(() => {
-    if (!data || !id || users.length === 0) {
+    if (!data || !id || users.length === 0 || tableData.length === 0) {
       setLoadingEntreprises(false);
       return;
     }
@@ -612,7 +702,16 @@ export default function ChantierFiche() {
           }
         });
 
-        // Map pour regrouper par entreprise, scierie et produit (clé: entrepriseId_scierie_produit)
+        // Créer un map scierie -> volume original pour calculer le ratio de modification
+        const scierieOriginalVolumes = new Map<string, number>();
+        const scierieModifiedVolumes = new Map<string, number>();
+        tableData.forEach((row, idx) => {
+          scierieOriginalVolumes.set(row.scierie, row.volume);
+          const modified = getVolumeForScierie(row.scierie, row.volume, idx);
+          scierieModifiedVolumes.set(row.scierie, modified);
+        });
+
+        // Map pour regrouper par entreprise et scierie uniquement (clé: entrepriseId_scierie)
         const entrepriseScierieMap = new Map<string, EntrepriseScierieData>();
         // Map pour stocker les noms d'entreprise et calculer les totaux
         const entrepriseInfoMap = new Map<string, { name: string; totalAbattage: number; totalDebardage: number }>();
@@ -620,17 +719,21 @@ export default function ChantierFiche() {
         // Parcourir tous les qualityGroups et leurs saisies
         for (const qg of data.qualityGroups || []) {
           const saisies = await listSaisies(id, qg.id);
+          const scierieName = qg.scieur.name;
+          const originalScierieVolume = scierieOriginalVolumes.get(scierieName) || 0;
+          const modifiedScierieVolume = scierieModifiedVolumes.get(scierieName) || originalScierieVolume;
+          const volumeRatio = originalScierieVolume > 0 ? modifiedScierieVolume / originalScierieVolume : 1;
           
           for (const saisie of saisies) {
-            const volume = Number(saisie.volumeCalc) || 0;
-            const scierieName = qg.scieur.name;
-            const produitName = qg.qualite.name;
+            const originalVolume = Number(saisie.volumeCalc) || 0;
+            // Appliquer le ratio si c'est Moulin
+            const volume = originalVolume * volumeRatio;
             
             // Volume abattage (utilisateur qui a fait la saisie)
             if (saisie.user?.id) {
               const userCompany = userToCompanyMap.get(saisie.user.id);
               if (userCompany) {
-                const key = `${userCompany.id}_${scierieName}_${produitName}`;
+                const key = `${userCompany.id}_${scierieName}`;
                 const existing = entrepriseScierieMap.get(key);
                 if (existing) {
                   existing.volumes.abattage += volume;
@@ -639,7 +742,6 @@ export default function ChantierFiche() {
                     entrepriseId: userCompany.id,
                     entrepriseName: userCompany.name,
                     scierie: scierieName,
-                    produit: produitName,
                     volumes: {
                       abattage: volume,
                       debardage: 0,
@@ -665,7 +767,7 @@ export default function ChantierFiche() {
             if (saisie.debardeur?.id) {
               const debardeurCompany = userToCompanyMap.get(saisie.debardeur.id);
               if (debardeurCompany) {
-                const key = `${debardeurCompany.id}_${scierieName}_${produitName}`;
+                const key = `${debardeurCompany.id}_${scierieName}`;
                 const existing = entrepriseScierieMap.get(key);
                 if (existing) {
                   existing.volumes.debardage += volume;
@@ -674,7 +776,6 @@ export default function ChantierFiche() {
                     entrepriseId: debardeurCompany.id,
                     entrepriseName: debardeurCompany.name,
                     scierie: scierieName,
-                    produit: produitName,
                     volumes: {
                       abattage: 0,
                       debardage: volume,
@@ -709,15 +810,11 @@ export default function ChantierFiche() {
           }
         });
 
-        // Convertir en tableau et trier les scieries par nom puis par produit (même ordre que dans le tableau "Répartition de la coupe par scierie")
+        // Convertir en tableau et trier les scieries par nom (même ordre que dans le tableau "Répartition de la coupe par scierie")
         const rows: EntrepriseData[] = Array.from(entrepriseInfoMap.entries()).map(([entrepriseId, info]) => {
           const scieries = entrepriseScieriesMap.get(entrepriseId) || [];
-          // Trier les scieries par nom puis par produit
-          scieries.sort((a, b) => {
-            const scierieCompare = a.scierie.localeCompare(b.scierie);
-            if (scierieCompare !== 0) return scierieCompare;
-            return a.produit.localeCompare(b.produit);
-          });
+          // Trier les scieries par nom
+          scieries.sort((a, b) => a.scierie.localeCompare(b.scierie));
           
           return {
             entrepriseId,
@@ -736,14 +833,48 @@ export default function ChantierFiche() {
 
         setEntrepriseData(rows);
         
-        // Initialiser les valeurs "A facturer" avec des chaînes vides pour la saisie manuelle (clé: entrepriseId_scierie_produit)
+        // Initialiser les valeurs "A facturer" avec des chaînes vides pour la saisie manuelle (clé: entrepriseId_scierie)
         // Mais préserver les valeurs existantes si elles sont déjà chargées
+        // Migration: convertir les anciennes clés (entrepriseId_scierie_produit) vers les nouvelles (entrepriseId_scierie)
         setAFacturerValues((prev) => {
-          const initialValues: Record<string, { abattage: string; debardage: string }> = { ...prev };
+          const initialValues: Record<string, { abattage: string; debardage: string }> = {};
+          
+          // Migrer les anciennes valeurs en les regroupant par entrepriseId_scierie
+          const migratedValues = new Map<string, { abattage: number; debardage: number }>();
+          Object.keys(prev).forEach((oldKey) => {
+            const parts = oldKey.split('_');
+            if (parts.length >= 3) {
+              const entrepriseId = parts[0];
+              const scierie = parts.slice(1, -1).join('_'); // Gérer les scieries avec underscores
+              const newKey = `${entrepriseId}_${scierie}`;
+              
+              const oldValue = prev[oldKey];
+              const existing = migratedValues.get(newKey);
+              if (existing) {
+                existing.abattage += parseFloat(oldValue?.abattage || "0") || 0;
+                existing.debardage += parseFloat(oldValue?.debardage || "0") || 0;
+              } else {
+                migratedValues.set(newKey, {
+                  abattage: parseFloat(oldValue?.abattage || "0") || 0,
+                  debardage: parseFloat(oldValue?.debardage || "0") || 0,
+                });
+              }
+            }
+          });
+          
+          // Convertir les valeurs migrées en chaînes
+          migratedValues.forEach((value, key) => {
+            initialValues[key] = {
+              abattage: value.abattage > 0 ? value.abattage.toFixed(3) : "",
+              debardage: value.debardage > 0 ? value.debardage.toFixed(3) : "",
+            };
+          });
+          
+          // Initialiser les nouvelles clés si elles n'existent pas
           rows.forEach((row) => {
             row.scieries.forEach((scierieData) => {
-              const key = `${row.entrepriseId}_${scierieData.scierie}_${scierieData.produit}`;
-              // Ne pas écraser si la valeur existe déjà
+              const key = `${row.entrepriseId}_${scierieData.scierie}`;
+              // Ne pas écraser si la valeur existe déjà (après migration)
               if (!initialValues[key]) {
                 initialValues[key] = {
                   abattage: "",
@@ -768,7 +899,7 @@ export default function ChantierFiche() {
     }
 
     loadEntrepriseData();
-  }, [data, id, users]);
+  }, [data, id, users, tableData, getVolumeForScierie]);
 
   // Fonction pour exporter la fiche en PDF
   const handleExportPDF = useCallback(() => {
@@ -925,7 +1056,6 @@ export default function ChantierFiche() {
               <thead>
                 <tr>
                   <th>Scierie</th>
-                  <th>Produit</th>
                   <th>N° de lot</th>
                   <th>Vol. (m³)</th>
                   <th>Fact. Aba. (m³)</th>
@@ -936,30 +1066,42 @@ export default function ChantierFiche() {
                 </tr>
               </thead>
               <tbody>
-                ${tableData.map((row) => {
+                ${tableData.map((row, idx) => {
                   let factureAba = 0;
                   let factureDeb = 0;
+                  // Pour chaque entreprise, récupérer la valeur pour cette scierie
                   for (const entrepriseId of row.entrepriseIds) {
-                    const keyPrefix = `${entrepriseId}_${row.scierie}_${row.produit}`;
-                    const values = aFacturerValues[keyPrefix];
+                    const key = `${entrepriseId}_${row.scierie}`;
+                    const values = aFacturerValues[key];
                     if (values) {
                       factureAba += parseFloat(values.abattage || "0") || 0;
                       factureDeb += parseFloat(values.debardage || "0") || 0;
                     }
                   }
-                  const resteAba = Math.max(0, row.volume - factureAba);
-                  const resteDeb = Math.max(0, row.volume - factureDeb);
+                  // Utiliser le volume modifié pour "Moulin", sinon le volume original
+                  const isMoulin = row.scierie.toLowerCase().includes("moulin");
+                  let volumeValue = row.volume;
+                  if (isMoulin && volumeMoulinValues[idx]) {
+                    // Normaliser la valeur (remplacer virgule par point pour le parsing)
+                    const normalizedValue = volumeMoulinValues[idx].replace(',', '.');
+                    const parsed = parseFloat(normalizedValue);
+                    if (!isNaN(parsed)) {
+                      volumeValue = parsed;
+                    }
+                  }
+                  const resteAba = Math.max(0, volumeValue - factureAba);
+                  const resteDeb = Math.max(0, volumeValue - factureDeb);
+                  const fraisGestion = fraisGestionValues[idx] || "0.00";
                   return `
                     <tr>
                       <td>${row.scierie}</td>
-                      <td>${row.produit}</td>
                       <td>${row.lot || "0"}</td>
-                      <td>${row.volume.toLocaleString("fr-FR", { minimumFractionDigits: 3, maximumFractionDigits: 3 })}</td>
+                      <td>${volumeValue.toLocaleString("fr-FR", { minimumFractionDigits: 3, maximumFractionDigits: 3 })}</td>
                       <td>${factureAba.toLocaleString("fr-FR", { minimumFractionDigits: 3, maximumFractionDigits: 3 })}</td>
                       <td>${factureDeb.toLocaleString("fr-FR", { minimumFractionDigits: 3, maximumFractionDigits: 3 })}</td>
                       <td>${resteAba.toLocaleString("fr-FR", { minimumFractionDigits: 3, maximumFractionDigits: 3 })}</td>
                       <td>${resteDeb.toLocaleString("fr-FR", { minimumFractionDigits: 3, maximumFractionDigits: 3 })}</td>
-                      <td>${fraisGestionValues[tableData.indexOf(row)] || ""}</td>
+                      <td>${fraisGestion}</td>
                     </tr>
                   `;
                 }).join('')}
@@ -967,8 +1109,19 @@ export default function ChantierFiche() {
                   <tr>
                     <td></td>
                     <td></td>
-                    <td></td>
-                    <td style="font-weight: bold;">${tableData.reduce((sum, row) => sum + row.volume, 0).toLocaleString("fr-FR", { minimumFractionDigits: 3, maximumFractionDigits: 3 })}</td>
+                    <td style="font-weight: bold;">$                    {tableData.reduce((sum, row, idx) => {
+                      const isMoulin = row.scierie.toLowerCase().includes("moulin");
+                      let volumeValue = row.volume;
+                      if (isMoulin && volumeMoulinValues[idx]) {
+                        // Normaliser la valeur (remplacer virgule par point pour le parsing)
+                        const normalizedValue = volumeMoulinValues[idx].replace(',', '.');
+                        const parsed = parseFloat(normalizedValue);
+                        if (!isNaN(parsed)) {
+                          volumeValue = parsed;
+                        }
+                      }
+                      return sum + volumeValue;
+                    }, 0).toLocaleString("fr-FR", { minimumFractionDigits: 3, maximumFractionDigits: 3 })}</td>
                     <td></td>
                     <td></td>
                     <td></td>
@@ -1063,18 +1216,16 @@ export default function ChantierFiche() {
               <thead>
                 <tr>
                   <th>Scierie</th>
-                  <th>Produit</th>
                   <th>Abattage (m³)</th>
                   <th>Débardage (m³)</th>
                 </tr>
               </thead>
               <tbody>
                 ${entreprise.scieries.map((scierieData) => {
-                  const key = `${entreprise.entrepriseId}_${scierieData.scierie}_${scierieData.produit}`;
+                  const key = `${entreprise.entrepriseId}_${scierieData.scierie}`;
                   return `
                     <tr>
                       <td>${scierieData.scierie}</td>
-                      <td>${scierieData.produit}</td>
                       <td>${aFacturerValues[key]?.abattage || "0.000"}</td>
                       <td>${aFacturerValues[key]?.debardage || "0.000"}</td>
                     </tr>
@@ -1083,13 +1234,12 @@ export default function ChantierFiche() {
                 ${entreprise.scieries.length > 0 ? `
                   <tr>
                     <td></td>
-                    <td></td>
                     <td style="font-weight: bold;">${entreprise.scieries.reduce((sum, scierieData) => {
-                      const key = `${entreprise.entrepriseId}_${scierieData.scierie}_${scierieData.produit}`;
+                      const key = `${entreprise.entrepriseId}_${scierieData.scierie}`;
                       return sum + (parseFloat(aFacturerValues[key]?.abattage || "0") || 0);
                     }, 0).toLocaleString("fr-FR", { minimumFractionDigits: 3, maximumFractionDigits: 3 })}</td>
                     <td style="font-weight: bold;">${entreprise.scieries.reduce((sum, scierieData) => {
-                      const key = `${entreprise.entrepriseId}_${scierieData.scierie}_${scierieData.produit}`;
+                      const key = `${entreprise.entrepriseId}_${scierieData.scierie}`;
                       return sum + (parseFloat(aFacturerValues[key]?.debardage || "0") || 0);
                     }, 0).toLocaleString("fr-FR", { minimumFractionDigits: 3, maximumFractionDigits: 3 })}</td>
                   </tr>
@@ -1340,7 +1490,6 @@ export default function ChantierFiche() {
             <thead>
               <tr className="border-b border-gray-200">
                 <th className="text-center py-2 px-2 font-medium text-gray-700 text-xs whitespace-nowrap">Scierie</th>
-                <th className="text-center py-2 px-2 font-medium text-gray-700 text-xs whitespace-nowrap">Produit</th>
                 <th className="text-center py-2 px-2 font-medium text-gray-700 text-xs whitespace-nowrap">N° de lot</th>
                 <th className="text-center py-2 px-2 font-medium text-gray-700 text-xs whitespace-nowrap">Vol. (m³)</th>
                 <th className="text-center py-2 px-2 font-medium text-gray-700 text-xs whitespace-nowrap">Fact. Aba. (m³)</th>
@@ -1353,49 +1502,85 @@ export default function ChantierFiche() {
             <tbody>
               {loadingTable ? (
                 <tr>
-                  <td colSpan={9} className="py-4 text-center text-gray-500 text-sm">
+                  <td colSpan={8} className="py-4 text-center text-gray-500 text-sm">
                     Chargement...
                   </td>
                 </tr>
               ) : tableData.length === 0 ? (
                 <tr>
-                  <td colSpan={9} className="py-4 text-center text-gray-500 text-sm">
+                  <td colSpan={8} className="py-4 text-center text-gray-500 text-sm">
                     Aucune donnée
                   </td>
                 </tr>
               ) : (
                 tableData.map((row, index) => {
-                  // Calculer les sommes pour cette ligne (cette scierie spécifique)
+                  // Calculer les sommes pour cette ligne (cette scierie)
+                  // On doit sommer toutes les valeurs pour cette scierie, tous produits confondus
                   let factureAba = 0;
                   let factureDeb = 0;
                   
-                  // Pour chaque entreprise associée à cette scierie, récupérer les valeurs pour cette scierie/produit spécifique
-                  // Il peut y avoir plusieurs produits pour la même scierie, donc on doit chercher toutes les clés qui commencent par entrepriseId_scierie_produit
+                  // Pour chaque entreprise associée à cette scierie, récupérer toutes les valeurs pour cette scierie
+                  // (tous produits confondus)
                   for (const entrepriseId of row.entrepriseIds) {
-                    const keyPrefix = `${entrepriseId}_${row.scierie}_${row.produit}`;
-                    const values = aFacturerValues[keyPrefix];
-                    if (values) {
-                      const abattage = parseFloat(values.abattage || "0") || 0;
-                      const debardage = parseFloat(values.debardage || "0") || 0;
-                      factureAba += abattage;
-                      factureDeb += debardage;
+                  // Récupérer la valeur pour cette scierie
+                  const key = `${entrepriseId}_${row.scierie}`;
+                  const values = aFacturerValues[key];
+                  if (values) {
+                    factureAba += parseFloat(values.abattage || "0") || 0;
+                    factureDeb += parseFloat(values.debardage || "0") || 0;
+                  }
+                  }
+
+                  // Utiliser le volume modifié pour "Moulin", sinon le volume original
+                  const isMoulin = row.scierie.toLowerCase().includes("moulin");
+                  let volumeValue = row.volume;
+                  if (isMoulin && volumeMoulinValues[index]) {
+                    // Normaliser la valeur (remplacer virgule par point pour le parsing)
+                    const normalizedValue = volumeMoulinValues[index].replace(',', '.');
+                    const parsed = parseFloat(normalizedValue);
+                    if (!isNaN(parsed)) {
+                      volumeValue = parsed;
                     }
                   }
 
-                  // Calculer les restes
-                  const resteAba = Math.max(0, row.volume - factureAba);
-                  const resteDeb = Math.max(0, row.volume - factureDeb);
+                  // Calculer les restes avec le volume (modifié ou original)
+                  const resteAba = Math.max(0, volumeValue - factureAba);
+                  const resteDeb = Math.max(0, volumeValue - factureDeb);
 
                   return (
                     <tr key={index} className="border-b border-gray-100">
                       <td className="py-2 px-3">{row.scierie}</td>
-                      <td className="py-2 px-3">{row.produit}</td>
                       <td className="py-2 px-3">{row.lot || "0"}</td>
                       <td className="py-2 px-3 text-right tabular-nums">
-                        {row.volume.toLocaleString("fr-FR", {
-                          minimumFractionDigits: 3,
-                          maximumFractionDigits: 3,
-                        })}
+                        {isMoulin ? (
+                          <input
+                            type="text"
+                            value={volumeMoulinValues[index] !== undefined 
+                              ? volumeMoulinValues[index] 
+                              : row.volume.toLocaleString("fr-FR", {
+                                  minimumFractionDigits: 3,
+                                  maximumFractionDigits: 3,
+                                })
+                            }
+                            onChange={(e) => {
+                              setVolumeMoulinValues((prev) => ({ ...prev, [index]: e.target.value }));
+                            }}
+                            onBlur={() => {
+                              // Sauvegarder automatiquement quand on quitte le champ
+                              saveFicheData();
+                            }}
+                            className="w-24 text-right tabular-nums border rounded px-2 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-black/20"
+                            placeholder={row.volume.toLocaleString("fr-FR", {
+                              minimumFractionDigits: 3,
+                              maximumFractionDigits: 3,
+                            })}
+                          />
+                        ) : (
+                          volumeValue.toLocaleString("fr-FR", {
+                            minimumFractionDigits: 3,
+                            maximumFractionDigits: 3,
+                          })
+                        )}
                       </td>
                       <td className="py-2 px-3 text-right tabular-nums">
                         {factureAba.toLocaleString("fr-FR", {
@@ -1441,9 +1626,20 @@ export default function ChantierFiche() {
                 <tr className="border-b border-gray-100">
                   <td className="py-2 px-3"></td>
                   <td className="py-2 px-3"></td>
-                  <td className="py-2 px-3"></td>
                   <td className="py-2 px-3 text-right tabular-nums font-semibold">
-                    {tableData.reduce((sum, row) => sum + row.volume, 0).toLocaleString("fr-FR", {
+                    {tableData.reduce((sum, row, idx) => {
+                      const isMoulin = row.scierie.toLowerCase().includes("moulin");
+                      let volumeValue = row.volume;
+                      if (isMoulin && volumeMoulinValues[idx]) {
+                        // Normaliser la valeur (remplacer virgule par point pour le parsing)
+                        const normalizedValue = volumeMoulinValues[idx].replace(',', '.');
+                        const parsed = parseFloat(normalizedValue);
+                        if (!isNaN(parsed)) {
+                          volumeValue = parsed;
+                        }
+                      }
+                      return sum + volumeValue;
+                    }, 0).toLocaleString("fr-FR", {
                       minimumFractionDigits: 3,
                       maximumFractionDigits: 3,
                     })}
@@ -1647,7 +1843,6 @@ export default function ChantierFiche() {
               <thead>
                 <tr className="border-b border-gray-200">
                   <th className="text-left py-2 px-3 font-medium text-gray-700">Scierie</th>
-                  <th className="text-left py-2 px-3 font-medium text-gray-700">Produit</th>
                   <th className="text-center py-2 px-3 font-medium text-gray-700">Abattage (m³)</th>
                   <th className="text-center py-2 px-3 font-medium text-gray-700">Débardage (m³)</th>
                 </tr>
@@ -1655,20 +1850,19 @@ export default function ChantierFiche() {
               <tbody>
                 {entreprise.scieries.length === 0 ? (
                   <tr>
-                    <td colSpan={4} className="py-4 text-center text-gray-500 text-sm">
+                    <td colSpan={3} className="py-4 text-center text-gray-500 text-sm">
                       Aucune scierie
                     </td>
                   </tr>
                 ) : (
                   entreprise.scieries.map((scierieData) => {
-                    const key = `${entreprise.entrepriseId}_${scierieData.scierie}_${scierieData.produit}`;
+                    const key = `${entreprise.entrepriseId}_${scierieData.scierie}`;
                     const hasAbattage = scierieData.volumes.abattage > 0;
                     const hasDebardage = scierieData.volumes.debardage > 0;
                     
                     return (
                       <tr key={key} className="border-b border-gray-100">
                         <td className="py-2 px-3">{scierieData.scierie}</td>
-                        <td className="py-2 px-3">{scierieData.produit}</td>
                         <td className="py-2 px-3 text-center">
                           <input
                             type="text"
@@ -1721,10 +1915,9 @@ export default function ChantierFiche() {
                 {entreprise.scieries.length > 0 && (
                   <tr className="border-b border-gray-100">
                     <td className="py-2 px-3"></td>
-                    <td className="py-2 px-3"></td>
                     <td className="py-2 px-3 text-center tabular-nums font-semibold">
                       {entreprise.scieries.reduce((sum, scierieData) => {
-                        const key = `${entreprise.entrepriseId}_${scierieData.scierie}_${scierieData.produit}`;
+                        const key = `${entreprise.entrepriseId}_${scierieData.scierie}`;
                         const value = parseFloat(aFacturerValues[key]?.abattage || "0") || 0;
                         return sum + value;
                       }, 0).toLocaleString("fr-FR", {
@@ -1734,7 +1927,7 @@ export default function ChantierFiche() {
                     </td>
                     <td className="py-2 px-3 text-center tabular-nums font-semibold">
                       {entreprise.scieries.reduce((sum, scierieData) => {
-                        const key = `${entreprise.entrepriseId}_${scierieData.scierie}_${scierieData.produit}`;
+                        const key = `${entreprise.entrepriseId}_${scierieData.scierie}`;
                         const value = parseFloat(aFacturerValues[key]?.debardage || "0") || 0;
                         return sum + value;
                       }, 0).toLocaleString("fr-FR", {
