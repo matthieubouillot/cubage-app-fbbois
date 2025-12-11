@@ -509,7 +509,7 @@ export default function ChantierFiche() {
           }
         });
 
-        // Créer un map scierie -> volume original pour calculer le ratio de modification
+        // Créer un map scierie -> volume original et modifié
         const scierieOriginalVolumes = new Map<string, number>();
         const scierieModifiedVolumes = new Map<string, number>();
         tableData.forEach((row, idx) => {
@@ -518,42 +518,82 @@ export default function ChantierFiche() {
           scierieModifiedVolumes.set(row.scierie, modified);
         });
 
-        const entrepriseMap = new Map<string, { name: string; volume: number }>();
+        // Étape 1 : Calculer les volumes originaux par entreprise (sans modification)
+        const entrepriseOriginalVolumes = new Map<string, { name: string; volume: number }>();
+        const scierieEntrepriseOriginalVolumes = new Map<string, Map<string, number>>(); // scierie -> entrepriseId -> volume
 
-        // Calculer le volume total de toutes les entreprises
-        let totalVolume = 0;
-
-        // Parcourir tous les qualityGroups et leurs saisies
+        // Parcourir tous les qualityGroups et leurs saisies pour calculer les volumes originaux
         for (const qg of data.qualityGroups || []) {
           const saisies = await listSaisies(id, qg.id);
           const scierieName = qg.scieur.name;
-          const originalScierieVolume = scierieOriginalVolumes.get(scierieName) || 0;
-          const modifiedScierieVolume = scierieModifiedVolumes.get(scierieName) || originalScierieVolume;
-          const volumeRatio = originalScierieVolume > 0 ? modifiedScierieVolume / originalScierieVolume : 1;
+          
+          if (!scierieEntrepriseOriginalVolumes.has(scierieName)) {
+            scierieEntrepriseOriginalVolumes.set(scierieName, new Map());
+          }
+          const entrepriseVolumesForScierie = scierieEntrepriseOriginalVolumes.get(scierieName)!;
           
           for (const saisie of saisies) {
             if (saisie.user?.id) {
               const originalVolume = Number(saisie.volumeCalc) || 0;
-              // Appliquer le ratio si c'est Moulin
-              const adjustedVolume = originalVolume * volumeRatio;
               const userCompany = userToCompanyMap.get(saisie.user.id);
               
               if (userCompany) {
-                totalVolume += adjustedVolume;
+                // Volume original par entreprise pour cette scierie
+                const existing = entrepriseVolumesForScierie.get(userCompany.id) || 0;
+                entrepriseVolumesForScierie.set(userCompany.id, existing + originalVolume);
                 
-                const existing = entrepriseMap.get(userCompany.id);
-                if (existing) {
-                  existing.volume += adjustedVolume;
+                // Volume total original par entreprise (toutes scieries)
+                const entrepriseOriginal = entrepriseOriginalVolumes.get(userCompany.id);
+                if (entrepriseOriginal) {
+                  entrepriseOriginal.volume += originalVolume;
                 } else {
-                  entrepriseMap.set(userCompany.id, {
+                  entrepriseOriginalVolumes.set(userCompany.id, {
                     name: userCompany.name,
-                    volume: adjustedVolume,
+                    volume: originalVolume,
                   });
                 }
               }
             }
           }
         }
+
+        // Étape 2 : Appliquer les modifications de volume par scierie (proportionnellement pour Moulin)
+        const entrepriseMap = new Map<string, { name: string; volume: number }>();
+        
+        // Initialiser avec les volumes originaux (toutes scieries)
+        entrepriseOriginalVolumes.forEach((info, id) => {
+          entrepriseMap.set(id, { ...info });
+        });
+
+        // Appliquer les modifications pour Moulin
+        for (const [scierieName, entrepriseVolumes] of scierieEntrepriseOriginalVolumes.entries()) {
+          const originalScierieVolume = scierieOriginalVolumes.get(scierieName) || 0;
+          const modifiedScierieVolume = scierieModifiedVolumes.get(scierieName) || originalScierieVolume;
+          const isMoulin = scierieName.toLowerCase().includes("moulin");
+          
+          if (isMoulin && originalScierieVolume > 0 && modifiedScierieVolume !== originalScierieVolume) {
+            // Pour Moulin : redistribuer le nouveau volume total en gardant les proportions par entreprise
+            const volumeRatio = modifiedScierieVolume / originalScierieVolume;
+            
+            entrepriseVolumes.forEach((originalVolume, entrepriseId) => {
+              // Garder la proportion, appliquer au nouveau total
+              const adjustedVolume = originalVolume * volumeRatio;
+              const entrepriseInfo = entrepriseMap.get(entrepriseId);
+              
+              if (entrepriseInfo) {
+                // Volume total ajusté = volume original total - volume original Moulin + volume ajusté Moulin
+                const originalMoulinVolume = originalVolume;
+                entrepriseInfo.volume = entrepriseInfo.volume - originalMoulinVolume + adjustedVolume;
+              }
+            });
+          }
+        }
+        
+        // Calculer le volume total final
+        let totalVolume = 0;
+        entrepriseMap.forEach((info) => {
+          totalVolume += info.volume;
+        });
 
         // Convertir en tableau avec pourcentages
         const rows: EntrepriseAbattageRow[] = Array.from(entrepriseMap.entries()).map(([id, data]) => ({
@@ -606,7 +646,7 @@ export default function ChantierFiche() {
           }
         });
 
-        // Créer un map scierie -> volume original pour calculer le ratio de modification
+        // Créer un map scierie -> volume original et modifié
         const scierieOriginalVolumes = new Map<string, number>();
         const scierieModifiedVolumes = new Map<string, number>();
         tableData.forEach((row, idx) => {
@@ -615,42 +655,82 @@ export default function ChantierFiche() {
           scierieModifiedVolumes.set(row.scierie, modified);
         });
 
-        const entrepriseMap = new Map<string, { name: string; volume: number }>();
+        // Étape 1 : Calculer les volumes originaux par entreprise (sans modification)
+        const entrepriseOriginalVolumes = new Map<string, { name: string; volume: number }>();
+        const scierieEntrepriseOriginalVolumes = new Map<string, Map<string, number>>(); // scierie -> entrepriseId -> volume
 
-        // Calculer le volume total de toutes les entreprises
-        let totalVolume = 0;
-
-        // Parcourir tous les qualityGroups et leurs saisies
+        // Parcourir tous les qualityGroups et leurs saisies pour calculer les volumes originaux
         for (const qg of data.qualityGroups || []) {
           const saisies = await listSaisies(id, qg.id);
           const scierieName = qg.scieur.name;
-          const originalScierieVolume = scierieOriginalVolumes.get(scierieName) || 0;
-          const modifiedScierieVolume = scierieModifiedVolumes.get(scierieName) || originalScierieVolume;
-          const volumeRatio = originalScierieVolume > 0 ? modifiedScierieVolume / originalScierieVolume : 1;
+          
+          if (!scierieEntrepriseOriginalVolumes.has(scierieName)) {
+            scierieEntrepriseOriginalVolumes.set(scierieName, new Map());
+          }
+          const entrepriseVolumesForScierie = scierieEntrepriseOriginalVolumes.get(scierieName)!;
           
           for (const saisie of saisies) {
             if (saisie.debardeur?.id) {
               const originalVolume = Number(saisie.volumeCalc) || 0;
-              // Appliquer le ratio si c'est Moulin
-              const adjustedVolume = originalVolume * volumeRatio;
               const debardeurCompany = userToCompanyMap.get(saisie.debardeur.id);
               
               if (debardeurCompany) {
-                totalVolume += adjustedVolume;
+                // Volume original par entreprise pour cette scierie
+                const existing = entrepriseVolumesForScierie.get(debardeurCompany.id) || 0;
+                entrepriseVolumesForScierie.set(debardeurCompany.id, existing + originalVolume);
                 
-                const existing = entrepriseMap.get(debardeurCompany.id);
-                if (existing) {
-                  existing.volume += adjustedVolume;
+                // Volume total original par entreprise (toutes scieries)
+                const entrepriseOriginal = entrepriseOriginalVolumes.get(debardeurCompany.id);
+                if (entrepriseOriginal) {
+                  entrepriseOriginal.volume += originalVolume;
                 } else {
-                  entrepriseMap.set(debardeurCompany.id, {
+                  entrepriseOriginalVolumes.set(debardeurCompany.id, {
                     name: debardeurCompany.name,
-                    volume: adjustedVolume,
+                    volume: originalVolume,
                   });
                 }
               }
             }
           }
         }
+
+        // Étape 2 : Appliquer les modifications de volume par scierie (proportionnellement pour Moulin)
+        const entrepriseMap = new Map<string, { name: string; volume: number }>();
+        
+        // Initialiser avec les volumes originaux (toutes scieries)
+        entrepriseOriginalVolumes.forEach((info, id) => {
+          entrepriseMap.set(id, { ...info });
+        });
+
+        // Appliquer les modifications pour Moulin
+        for (const [scierieName, entrepriseVolumes] of scierieEntrepriseOriginalVolumes.entries()) {
+          const originalScierieVolume = scierieOriginalVolumes.get(scierieName) || 0;
+          const modifiedScierieVolume = scierieModifiedVolumes.get(scierieName) || originalScierieVolume;
+          const isMoulin = scierieName.toLowerCase().includes("moulin");
+          
+          if (isMoulin && originalScierieVolume > 0 && modifiedScierieVolume !== originalScierieVolume) {
+            // Pour Moulin : redistribuer le nouveau volume total en gardant les proportions par entreprise
+            const volumeRatio = modifiedScierieVolume / originalScierieVolume;
+            
+            entrepriseVolumes.forEach((originalVolume, entrepriseId) => {
+              // Garder la proportion, appliquer au nouveau total
+              const adjustedVolume = originalVolume * volumeRatio;
+              const entrepriseInfo = entrepriseMap.get(entrepriseId);
+              
+              if (entrepriseInfo) {
+                // Volume total ajusté = volume original total - volume original Moulin + volume ajusté Moulin
+                const originalMoulinVolume = originalVolume;
+                entrepriseInfo.volume = entrepriseInfo.volume - originalMoulinVolume + adjustedVolume;
+              }
+            });
+          }
+        }
+        
+        // Calculer le volume total final
+        let totalVolume = 0;
+        entrepriseMap.forEach((info) => {
+          totalVolume += info.volume;
+        });
 
         // Convertir en tableau avec pourcentages
         const rows: EntrepriseDebardageRow[] = Array.from(entrepriseMap.entries()).map(([id, data]) => ({
@@ -716,48 +796,32 @@ export default function ChantierFiche() {
         // Map pour stocker les noms d'entreprise et calculer les totaux
         const entrepriseInfoMap = new Map<string, { name: string; totalAbattage: number; totalDebardage: number }>();
 
-        // Parcourir tous les qualityGroups et leurs saisies
+        // Étape 1 : Calculer les volumes originaux par entreprise et scierie (sans modification)
+        const entrepriseScierieOriginalMap = new Map<string, { entrepriseId: string; entrepriseName: string; scierie: string; abattage: number; debardage: number }>(); // key: entrepriseId_scierie
+        
+        // Parcourir tous les qualityGroups et leurs saisies pour calculer les volumes originaux
         for (const qg of data.qualityGroups || []) {
           const saisies = await listSaisies(id, qg.id);
           const scierieName = qg.scieur.name;
-          const originalScierieVolume = scierieOriginalVolumes.get(scierieName) || 0;
-          const modifiedScierieVolume = scierieModifiedVolumes.get(scierieName) || originalScierieVolume;
-          const volumeRatio = originalScierieVolume > 0 ? modifiedScierieVolume / originalScierieVolume : 1;
           
           for (const saisie of saisies) {
             const originalVolume = Number(saisie.volumeCalc) || 0;
-            // Appliquer le ratio si c'est Moulin
-            const volume = originalVolume * volumeRatio;
             
             // Volume abattage (utilisateur qui a fait la saisie)
             if (saisie.user?.id) {
               const userCompany = userToCompanyMap.get(saisie.user.id);
               if (userCompany) {
                 const key = `${userCompany.id}_${scierieName}`;
-                const existing = entrepriseScierieMap.get(key);
+                const existing = entrepriseScierieOriginalMap.get(key);
                 if (existing) {
-                  existing.volumes.abattage += volume;
+                  existing.abattage += originalVolume;
                 } else {
-                  entrepriseScierieMap.set(key, {
+                  entrepriseScierieOriginalMap.set(key, {
                     entrepriseId: userCompany.id,
                     entrepriseName: userCompany.name,
                     scierie: scierieName,
-                    volumes: {
-                      abattage: volume,
-                      debardage: 0,
-                    },
-                  });
-                }
-                
-                // Mettre à jour les totaux de l'entreprise
-                const entrepriseInfo = entrepriseInfoMap.get(userCompany.id);
-                if (entrepriseInfo) {
-                  entrepriseInfo.totalAbattage += volume;
-                } else {
-                  entrepriseInfoMap.set(userCompany.id, {
-                    name: userCompany.name,
-                    totalAbattage: volume,
-                    totalDebardage: 0,
+                    abattage: originalVolume,
+                    debardage: 0,
                   });
                 }
               }
@@ -768,36 +832,71 @@ export default function ChantierFiche() {
               const debardeurCompany = userToCompanyMap.get(saisie.debardeur.id);
               if (debardeurCompany) {
                 const key = `${debardeurCompany.id}_${scierieName}`;
-                const existing = entrepriseScierieMap.get(key);
+                const existing = entrepriseScierieOriginalMap.get(key);
                 if (existing) {
-                  existing.volumes.debardage += volume;
+                  existing.debardage += originalVolume;
                 } else {
-                  entrepriseScierieMap.set(key, {
+                  entrepriseScierieOriginalMap.set(key, {
                     entrepriseId: debardeurCompany.id,
                     entrepriseName: debardeurCompany.name,
                     scierie: scierieName,
-                    volumes: {
-                      abattage: 0,
-                      debardage: volume,
-                    },
-                  });
-                }
-                
-                // Mettre à jour les totaux de l'entreprise
-                const entrepriseInfo = entrepriseInfoMap.get(debardeurCompany.id);
-                if (entrepriseInfo) {
-                  entrepriseInfo.totalDebardage += volume;
-                } else {
-                  entrepriseInfoMap.set(debardeurCompany.id, {
-                    name: debardeurCompany.name,
-                    totalAbattage: 0,
-                    totalDebardage: volume,
+                    abattage: 0,
+                    debardage: originalVolume,
                   });
                 }
               }
             }
           }
         }
+
+        // Étape 2 : Appliquer les modifications pour Moulin (redistribuer proportionnellement)
+        entrepriseScierieOriginalMap.forEach((originalData, key) => {
+          const isMoulin = originalData.scierie.toLowerCase().includes("moulin");
+          const originalScierieVolume = scierieOriginalVolumes.get(originalData.scierie) || 0;
+          const modifiedScierieVolume = scierieModifiedVolumes.get(originalData.scierie) || originalScierieVolume;
+          
+          let adjustedVolumes = {
+            abattage: originalData.abattage,
+            debardage: originalData.debardage,
+          };
+          
+          if (isMoulin && originalScierieVolume > 0 && modifiedScierieVolume !== originalScierieVolume) {
+            // Pour Moulin : redistribuer proportionnellement
+            const volumeRatio = modifiedScierieVolume / originalScierieVolume;
+            adjustedVolumes = {
+              abattage: originalData.abattage * volumeRatio,
+              debardage: originalData.debardage * volumeRatio,
+            };
+          }
+          
+          // Ajouter au map final
+          const finalKey = `${originalData.entrepriseId}_${originalData.scierie}`;
+          const existing = entrepriseScierieMap.get(finalKey);
+          if (existing) {
+            existing.volumes.abattage += adjustedVolumes.abattage;
+            existing.volumes.debardage += adjustedVolumes.debardage;
+          } else {
+            entrepriseScierieMap.set(finalKey, {
+              entrepriseId: originalData.entrepriseId,
+              entrepriseName: originalData.entrepriseName,
+              scierie: originalData.scierie,
+              volumes: adjustedVolumes,
+            });
+          }
+          
+          // Mettre à jour les totaux de l'entreprise
+          const entrepriseInfo = entrepriseInfoMap.get(originalData.entrepriseId);
+          if (entrepriseInfo) {
+            entrepriseInfo.totalAbattage += adjustedVolumes.abattage;
+            entrepriseInfo.totalDebardage += adjustedVolumes.debardage;
+          } else {
+            entrepriseInfoMap.set(originalData.entrepriseId, {
+              name: originalData.entrepriseName,
+              totalAbattage: adjustedVolumes.abattage,
+              totalDebardage: adjustedVolumes.debardage,
+            });
+          }
+        });
 
         // Grouper les scieries par entreprise
         const entrepriseScieriesMap = new Map<string, EntrepriseScierieData[]>();
