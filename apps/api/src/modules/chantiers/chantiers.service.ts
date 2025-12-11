@@ -723,13 +723,13 @@ export async function saveChantierFicheService(
         aFacturerValues: data.aFacturerValues,
         fraisGestionValues: data.fraisGestionValues,
         prixUHT: data.prixUHT,
-        volumeMoulinValues: data.volumeMoulinValues ?? null,
+        ...(data.volumeMoulinValues !== undefined && { volumeMoulinValues: data.volumeMoulinValues }),
       },
       update: {
         aFacturerValues: data.aFacturerValues,
         fraisGestionValues: data.fraisGestionValues,
         prixUHT: data.prixUHT,
-        volumeMoulinValues: data.volumeMoulinValues ?? null,
+        ...(data.volumeMoulinValues !== undefined && { volumeMoulinValues: data.volumeMoulinValues }),
       },
     });
 
