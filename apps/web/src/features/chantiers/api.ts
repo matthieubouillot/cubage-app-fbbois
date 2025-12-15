@@ -1,4 +1,4 @@
-import { api } from "../../lib/api";
+import { api, apiOptional } from "../../lib/api";
 import { listChantiersOffline, deleteChantierOffline, trySyncChantiersQueue, getChantierOffline } from "./offline";
 
 export type Essence = { id: string; name: string };
@@ -197,21 +197,14 @@ export type ChantierFicheData = {
 };
 
 export async function getChantierFiche(chantierId: string): Promise<ChantierFicheData | null> {
+  // Le backend retourne maintenant toujours une fiche (avec valeurs par défaut si elle n'existe pas)
+  // Donc on peut utiliser api() normalement, il n'y aura plus de 404
   try {
     return await api<ChantierFicheData>(`/chantiers/${chantierId}/fiche`);
   } catch (e: any) {
-    // 404 est normal si la fiche n'existe pas encore - on retourne null silencieusement
-    const errorMessage = e.message || "";
-    if (
-      errorMessage.includes("404") || 
-      errorMessage.includes("introuvable") || 
-      errorMessage.includes("Not Found") ||
-      errorMessage.includes("404 (Not Found)")
-    ) {
-      return null;
-    }
-    // Pour les autres erreurs, on les propage
-    throw e;
+    // En cas d'erreur (500, etc.), retourner null
+    console.error("Erreur lors du chargement de la fiche chantier:", e);
+    return null;
   }
 }
 

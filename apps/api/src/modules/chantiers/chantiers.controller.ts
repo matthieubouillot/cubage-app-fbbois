@@ -147,10 +147,9 @@ const SaveChantierFicheSchema = z.object({
 export async function getChantierFiche(req: Request, res: Response) {
   try {
     const { id } = req.params;
+    // Retourne toujours une fiche (avec valeurs par défaut si elle n'existe pas)
+    // Cela évite les erreurs 404
     const data = await getChantierFicheService(id);
-    if (!data) {
-      return res.status(404).json({ error: "Fiche chantier introuvable" });
-    }
     return res.json(data);
   } catch (e: any) {
     return res.status(500).json({

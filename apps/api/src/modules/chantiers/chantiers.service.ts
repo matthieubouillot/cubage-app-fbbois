@@ -690,14 +690,22 @@ export async function deleteChantierService(
   }
 }
 
-export async function getChantierFicheService(chantierId: string): Promise<ChantierFicheData | null> {
+export async function getChantierFicheService(chantierId: string): Promise<ChantierFicheData> {
   try {
     const fiche = await prisma.chantierFiche.findUnique({
       where: { chantierId },
     });
 
+    // Si la fiche n'existe pas, retourner une fiche avec des valeurs par défaut
+    // Cela évite les erreurs 404 et permet de créer la fiche à la première sauvegarde
     if (!fiche) {
-      return null;
+      return {
+        aFacturerValues: {},
+        fraisGestionValues: {},
+        prixUHT: { aba: "", deb: "" },
+        volumeMoulinValues: undefined,
+        facturationValues: undefined,
+      };
     }
 
     return {
