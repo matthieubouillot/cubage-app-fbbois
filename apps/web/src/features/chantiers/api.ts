@@ -200,10 +200,17 @@ export async function getChantierFiche(chantierId: string): Promise<ChantierFich
   try {
     return await api<ChantierFicheData>(`/chantiers/${chantierId}/fiche`);
   } catch (e: any) {
-    // 404 est normal si la fiche n'existe pas encore
-    if (e.message?.includes("404") || e.message?.includes("introuvable") || e.message?.includes("Not Found")) {
+    // 404 est normal si la fiche n'existe pas encore - on retourne null silencieusement
+    const errorMessage = e.message || "";
+    if (
+      errorMessage.includes("404") || 
+      errorMessage.includes("introuvable") || 
+      errorMessage.includes("Not Found") ||
+      errorMessage.includes("404 (Not Found)")
+    ) {
       return null;
     }
+    // Pour les autres erreurs, on les propage
     throw e;
   }
 }

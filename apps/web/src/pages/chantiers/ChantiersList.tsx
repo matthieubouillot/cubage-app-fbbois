@@ -50,7 +50,12 @@ export default function ChantiersList() {
         data.map(async (chantier) => {
           try {
             const fiche = await getChantierFiche(chantier.id);
-            if (fiche?.facturationValues) {
+            // Si la fiche n'existe pas (null), on considère que la facturation n'est pas complète
+            if (!fiche) {
+              statusMap[chantier.id] = false;
+              return;
+            }
+            if (fiche.facturationValues) {
               // Compter le nombre de scieries uniques (depuis les qualityGroups)
               const uniqueScieries = new Set<string>();
               chantier.qualityGroups.forEach(qg => {
