@@ -185,7 +185,7 @@ export default function ChantierFiche() {
     } finally {
       setSaving(false);
     }
-    }, [id, aFacturerValues, fraisGestionValues, prixUHT, volumeMoulinValues, isInitialLoad]);
+    }, [id, aFacturerValues, fraisGestionValues, prixUHT, volumeMoulinValues, facturationValues, isInitialLoad]);
 
   // Sauvegarder automatiquement avec debounce (après 1 seconde d'inactivité)
   useEffect(() => {
@@ -1746,8 +1746,39 @@ export default function ChantierFiche() {
                         <input
                           type="checkbox"
                           checked={facturationValues[index] || false}
-                          onChange={(e) => {
-                            setFacturationValues((prev) => ({ ...prev, [index]: e.target.checked }));
+                          onChange={async (e) => {
+                            const newValue = e.target.checked;
+                            const updated = { ...facturationValues, [index]: newValue };
+                            setFacturationValues(updated);
+                            // Sauvegarder immédiatement
+                            if (!isInitialLoad && id) {
+                              try {
+                                setSaving(true);
+                                const facturation: Record<string, boolean> = {};
+                                Object.keys(updated).forEach((key) => {
+                                  facturation[key] = updated[Number(key)];
+                                });
+                                const fraisGestion: Record<string, string> = {};
+                                Object.keys(fraisGestionValues).forEach((key) => {
+                                  fraisGestion[key] = fraisGestionValues[Number(key)];
+                                });
+                                const volumeMoulin: Record<string, string> = {};
+                                Object.keys(volumeMoulinValues).forEach((key) => {
+                                  volumeMoulin[key] = volumeMoulinValues[Number(key)];
+                                });
+                                await saveChantierFiche(id, {
+                                  aFacturerValues: aFacturerValues || {},
+                                  fraisGestionValues: fraisGestion,
+                                  prixUHT: prixUHT || { aba: "", deb: "" },
+                                  volumeMoulinValues: volumeMoulin,
+                                  facturationValues: facturation,
+                                });
+                              } catch (error) {
+                                console.error("Erreur lors de la sauvegarde de la facturation:", error);
+                              } finally {
+                                setSaving(false);
+                              }
+                            }
                           }}
                           className="h-4 w-4 accent-black cursor-pointer"
                           title="Facturation effectuée"
