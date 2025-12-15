@@ -5,6 +5,7 @@ export type ChantierFicheData = {
   fraisGestionValues: Record<number, string>;
   prixUHT: { aba: string; deb: string };
   volumeMoulinValues?: Record<string, string>;
+  facturationValues?: Record<string, boolean>;
 };
 
 export async function listChantiersService(user: {
@@ -704,6 +705,7 @@ export async function getChantierFicheService(chantierId: string): Promise<Chant
       fraisGestionValues: fiche.fraisGestionValues as Record<number, string>,
       prixUHT: fiche.prixUHT as { aba: string; deb: string },
       volumeMoulinValues: fiche.volumeMoulinValues as Record<string, string> | undefined,
+      facturationValues: fiche.facturationValues as Record<string, boolean> | undefined,
     };
   } catch (error) {
     console.error("Error in getChantierFicheService:", error);
@@ -724,12 +726,14 @@ export async function saveChantierFicheService(
         fraisGestionValues: data.fraisGestionValues,
         prixUHT: data.prixUHT,
         ...(data.volumeMoulinValues !== undefined && { volumeMoulinValues: data.volumeMoulinValues }),
+        ...(data.facturationValues !== undefined && { facturationValues: data.facturationValues }),
       },
       update: {
         aFacturerValues: data.aFacturerValues,
         fraisGestionValues: data.fraisGestionValues,
         prixUHT: data.prixUHT,
         ...(data.volumeMoulinValues !== undefined && { volumeMoulinValues: data.volumeMoulinValues }),
+        ...(data.facturationValues !== undefined && { facturationValues: data.facturationValues }),
       },
     });
 
@@ -738,6 +742,7 @@ export async function saveChantierFicheService(
       fraisGestionValues: fiche.fraisGestionValues as Record<number, string>,
       prixUHT: fiche.prixUHT as { aba: string; deb: string },
       volumeMoulinValues: fiche.volumeMoulinValues as Record<string, string> | undefined,
+      facturationValues: fiche.facturationValues as Record<string, boolean> | undefined,
     };
   } catch (error) {
     console.error("Error in saveChantierFicheService:", error);

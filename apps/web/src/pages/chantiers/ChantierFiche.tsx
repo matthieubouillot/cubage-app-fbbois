@@ -74,6 +74,8 @@ export default function ChantierFiche() {
   const [fraisGestionValues, setFraisGestionValues] = useState<Record<number, string>>({});
   // État pour le volume modifiable de la scierie "Moulin" (clé: index de la ligne dans tableData)
   const [volumeMoulinValues, setVolumeMoulinValues] = useState<Record<number, string>>({});
+  // État pour les cases à cocher de facturation (clé: index de la ligne dans tableData)
+  const [facturationValues, setFacturationValues] = useState<Record<number, boolean>>({});
   // État pour les prix UHT
   const [prixUHT, setPrixUHT] = useState<{ aba: string; deb: string }>({ aba: "", deb: "" });
   // État pour les antériorités par entreprise (clé: entrepriseId, valeur: { abattage: number, debardage: number })
@@ -113,6 +115,15 @@ export default function ChantierFiche() {
             }
           });
           setVolumeMoulinValues(volumeMoulin);
+          // Convertir les clés numériques en nombres pour facturationValues
+          const facturation: Record<number, boolean> = {};
+          Object.keys(ficheData.facturationValues || {}).forEach((key) => {
+            const value = ficheData.facturationValues![Number(key)];
+            if (value !== undefined) {
+              facturation[Number(key)] = Boolean(value);
+            }
+          });
+          setFacturationValues(facturation);
         } else {
           // Initialiser avec des valeurs vides si la fiche n'existe pas encore
           setAFacturerValues({});
@@ -156,11 +167,18 @@ export default function ChantierFiche() {
         volumeMoulin[key] = volumeMoulinValues[Number(key)];
       });
 
+      // Convertir les clés numériques en strings pour facturationValues
+      const facturation: Record<string, boolean> = {};
+      Object.keys(facturationValues).forEach((key) => {
+        facturation[key] = facturationValues[Number(key)];
+      });
+
       await saveChantierFiche(id, {
         aFacturerValues: aFacturerValues || {},
         fraisGestionValues: fraisGestion,
         prixUHT: prixUHT || { aba: "", deb: "" },
         volumeMoulinValues: volumeMoulin,
+        facturationValues: facturation,
       });
     } catch (e) {
       console.error("Erreur lors de la sauvegarde de la fiche chantier:", e);
@@ -178,7 +196,7 @@ export default function ChantierFiche() {
     }, 1000);
 
     return () => clearTimeout(timeoutId);
-  }, [id, aFacturerValues, fraisGestionValues, prixUHT, volumeMoulinValues, saveFicheData, isInitialLoad]);
+  }, [id, aFacturerValues, fraisGestionValues, prixUHT, volumeMoulinValues, facturationValues, saveFicheData, isInitialLoad]);
 
   // Charger les antériorités depuis les chantiers précédents
   useEffect(() => {
@@ -1191,6 +1209,8 @@ export default function ChantierFiche() {
                   const resteAba = Math.max(0, volumeValue - factureAba);
                   const resteDeb = Math.max(0, volumeValue - factureDeb);
                   const fraisGestion = fraisGestionValues[idx] || "0.00";
+                  // Convertir facturationValues en format accessible (les clés sont des strings dans le contexte du PDF)
+                  const facturationChecked = facturationValues[idx] || false;
                   return `
                     <tr>
                       <td>${row.scierie}</td>
@@ -1201,6 +1221,7 @@ export default function ChantierFiche() {
                       <td>${resteAba.toLocaleString("fr-FR", { minimumFractionDigits: 3, maximumFractionDigits: 3 })}</td>
                       <td>${resteDeb.toLocaleString("fr-FR", { minimumFractionDigits: 3, maximumFractionDigits: 3 })}</td>
                       <td>${fraisGestion}</td>
+                      <td style="text-align: center;">${facturationChecked ? '✓' : ''}</td>
                     </tr>
                   `;
                 }).join('')}
@@ -1208,19 +1229,23 @@ export default function ChantierFiche() {
                   <tr>
                     <td></td>
                     <td></td>
-                    <td style="font-weight: bold;">$                    {tableData.reduce((sum, row, idx) => {
-                      const isMoulin = row.scierie.toLowerCase().includes("moulin");
-                      let volumeValue = row.volume;
-                      if (isMoulin && volumeMoulinValues[idx]) {
-                        // Normaliser la valeur (remplacer virgule par point pour le parsing)
-                        const normalizedValue = volumeMoulinValues[idx].replace(',', '.');
-                        const parsed = parseFloat(normalizedValue);
-                        if (!isNaN(parsed)) {
-                          volumeValue = parsed;
+                    <td style="font-weight: bold;">${(() => {
+                      let total = 0;
+                      tableData.forEach((row, idx) => {
+                        const isMoulin = row.scierie.toLowerCase().includes("moulin");
+                        let volumeValue = row.volume;
+                        if (isMoulin && volumeMoulinValues[idx]) {
+                          const normalizedValue = volumeMoulinValues[idx].replace(',', '.');
+                          const parsed = parseFloat(normalizedValue);
+                          if (!isNaN(parsed)) {
+                            volumeValue = parsed;
+                          }
                         }
-                      }
-                      return sum + volumeValue;
-                    }, 0).toLocaleString("fr-FR", { minimumFractionDigits: 3, maximumFractionDigits: 3 })}</td>
+                        total += volumeValue;
+                      });
+                      return total.toLocaleString("fr-FR", { minimumFractionDigits: 3, maximumFractionDigits: 3 });
+                    })()}</td>
+                    <td></td>
                     <td></td>
                     <td></td>
                     <td></td>
@@ -1596,18 +1621,19 @@ export default function ChantierFiche() {
                 <th className="text-center py-2 px-2 font-medium text-gray-700 text-xs whitespace-nowrap">R. Aba. (m³)</th>
                 <th className="text-center py-2 px-2 font-medium text-gray-700 text-xs whitespace-nowrap">R. Deb. (m³)</th>
                 <th className="text-center py-2 px-1 font-medium text-gray-700 text-xs whitespace-nowrap">Frais de gestion</th>
+                <th className="text-center py-2 px-1 font-medium text-gray-700 text-xs whitespace-nowrap">Facturation</th>
               </tr>
             </thead>
             <tbody>
               {loadingTable ? (
                 <tr>
-                  <td colSpan={8} className="py-4 text-center text-gray-500 text-sm">
+                  <td colSpan={9} className="py-4 text-center text-gray-500 text-sm">
                     Chargement...
                   </td>
                 </tr>
               ) : tableData.length === 0 ? (
                 <tr>
-                  <td colSpan={8} className="py-4 text-center text-gray-500 text-sm">
+                  <td colSpan={9} className="py-4 text-center text-gray-500 text-sm">
                     Aucune donnée
                   </td>
                 </tr>
@@ -1714,6 +1740,17 @@ export default function ChantierFiche() {
                           }}
                           placeholder="0.00"
                           className="w-16 text-right tabular-nums border rounded px-1 py-1 text-xs focus:outline-none focus:ring-2 focus:ring-black/20"
+                        />
+                      </td>
+                      <td className="py-2 px-3 text-center">
+                        <input
+                          type="checkbox"
+                          checked={facturationValues[index] || false}
+                          onChange={(e) => {
+                            setFacturationValues((prev) => ({ ...prev, [index]: e.target.checked }));
+                          }}
+                          className="h-4 w-4 accent-black cursor-pointer"
+                          title="Facturation effectuée"
                         />
                       </td>
                     </tr>

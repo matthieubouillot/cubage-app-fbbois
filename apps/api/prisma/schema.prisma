@@ -66,7 +66,7 @@ model Client {
   id         String     @id @default(uuid())
   firstName  String
   lastName   String
-  email      String     @unique
+  email      String
   phone      String     @default("")
   street     String     @default("")
   postalCode String     @default("")
@@ -299,6 +299,7 @@ model ChantierFiche {
   fraisGestionValues Json    // Record<number, string>
   prixUHT           Json     // { aba: string; deb: string }
   volumeMoulinValues Json?   // Record<string, string> - volumes modifiés pour la scierie Moulin
+  facturationValues Json?   // Record<number, boolean> - facturation cochée par index de scierie
   createdAt         DateTime @default(now())
   updatedAt         DateTime @updatedAt
   chantier          Chantier @relation(fields: [chantierId], references: [id], onDelete: Cascade)

@@ -4,6 +4,7 @@ import {
   fetchChantiers,
   deleteChantier,
   type ChantierListItem,
+  getChantierFiche,
 } from "../../features/chantiers/api";
 import { getUser } from "../../features/auth/auth";
 import { twMerge } from "tailwind-merge";
@@ -29,6 +30,7 @@ export default function ChantiersList() {
   const [rows, setRows] = useState<ChantierListItem[] | null>(null);
   const [err, setErr] = useState<string | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [facturationStatus, setFacturationStatus] = useState<Record<string, boolean>>({});
   const nav = useNavigate();
   const u = getUser();
   const isSupervisor = u?.roles.includes("SUPERVISEUR");
@@ -41,6 +43,44 @@ export default function ChantiersList() {
       setErr(null);
       const data = await fetchChantiers();
       setRows(data);
+      
+      // Charger les statuts de facturation pour chaque chantier
+      const statusMap: Record<string, boolean> = {};
+      await Promise.all(
+        data.map(async (chantier) => {
+          try {
+            const fiche = await getChantierFiche(chantier.id);
+            if (fiche?.facturationValues) {
+              // Compter le nombre de scieries uniques (depuis les qualityGroups)
+              const uniqueScieries = new Set<string>();
+              chantier.qualityGroups.forEach(qg => {
+                if (qg.scieur?.name) {
+                  uniqueScieries.add(qg.scieur.name);
+                }
+              });
+              const nombreScieries = uniqueScieries.size;
+              
+              // Vérifier si toutes les scieries sont cochées
+              // facturationValues est indexé par l'index de la ligne dans tableData (0, 1, 2, ...)
+              // On doit vérifier que toutes les lignes de 0 à nombreScieries-1 sont cochées
+              let toutesCochees = true;
+              for (let i = 0; i < nombreScieries; i++) {
+                if (!fiche.facturationValues[String(i)] || fiche.facturationValues[String(i)] !== true) {
+                  toutesCochees = false;
+                  break;
+                }
+              }
+              statusMap[chantier.id] = nombreScieries > 0 && toutesCochees;
+            } else {
+              statusMap[chantier.id] = false;
+            }
+          } catch (e) {
+            // Si la fiche n'existe pas ou erreur, considérer comme non facturé
+            statusMap[chantier.id] = false;
+          }
+        })
+      );
+      setFacturationStatus(statusMap);
     } catch (e: any) {
       setErr(e.message || "Erreur");
     }
@@ -183,6 +223,19 @@ export default function ChantiersList() {
                       )}
                     </div>
                   )}
+
+                  <div className="mt-3 space-y-1">
+                    <div className="text-[11px] uppercase tracking-wide text-gray-500">
+                      Facturation
+                    </div>
+                    <div className="font-medium">
+                      {facturationStatus[r.id] ? (
+                        <span className="text-green-600 font-bold text-lg" title="Facturation complète">✓</span>
+                      ) : (
+                        <span className="text-red-600 font-bold text-lg" title="Facturation incomplète">✗</span>
+                      )}
+                    </div>
+                  </div>
                 </div>
 
                 <div className="mt-4 flex items-center justify-center gap-3">
@@ -238,6 +291,7 @@ export default function ChantiersList() {
                  <Th>Propriété</Th>
                  {isSupervisor && <Th>Bûcherons</Th>}
                  {isSupervisor && <Th>Date</Th>}
+                 <Th>Facturation</Th>
                  <Th>Actions</Th>
                </tr>
              </thead>
@@ -253,6 +307,8 @@ export default function ChantiersList() {
                 ? `${r.property.commune} (${r.property.lieuDit})`
                 : r.property.commune || 'N/A')
             : 'N/A';
+
+          const isFacturationComplete = facturationStatus[r.id] || false;
 
           return (
             <tr key={r.id} className="border-t border-gray-200 text-center">
@@ -288,6 +344,14 @@ export default function ChantiersList() {
                   })}
                 </Td>
               )}
+
+              <Td className="align-middle">
+                {isFacturationComplete ? (
+                  <span className="text-green-600 font-bold text-lg" title="Facturation complète">✓</span>
+                ) : (
+                  <span className="text-red-600 font-bold text-lg" title="Facturation incomplète">✗</span>
+                )}
+              </Td>
 
               <Td className="align-middle">
                 <div className="flex items-center justify-center gap-2">

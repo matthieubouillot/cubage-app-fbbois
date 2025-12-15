@@ -102,15 +102,13 @@ export default function ClientsPage() {
 
               {/* Actions iOS centrées */}
               <div className="mt-4 flex items-center justify-center gap-3">
-                {c.properties && c.properties.length > 0 && (
-                  <button
-                    onClick={() => setShowPropertiesModal(c)}
-                    className="bg-black text-white rounded-full px-3 py-1 text-xs font-medium hover:bg-gray-800 transition-colors"
-                    title="Voir les propriétés"
-                  >
-                    {c.properties.length} propriété{c.properties.length > 1 ? 's' : ''}
-                  </button>
-                )}
+                <button
+                  onClick={() => setShowPropertiesModal(c)}
+                  className="bg-black text-white rounded-full px-3 py-1 text-xs font-medium hover:bg-gray-800 transition-colors"
+                  title={c.properties && c.properties.length > 0 ? "Voir les propriétés" : "Ajouter une propriété"}
+                >
+                  {c.properties?.length || 0} propriété{(c.properties?.length || 0) > 1 ? 's' : ''}
+                </button>
                 <button
                   onClick={() => setEditing(c)}
                   className={iosIconBtnLight}
@@ -524,7 +522,18 @@ function ClientModal(props: ClientModalProps) {
         street: street.trim() || "",
         postalCode: postalCode.trim() || "",
         city: city.trim() || "",
-        properties: [],
+        ...(isEdit ? {
+          // En mode édition, inclure les propriétés existantes pour les préserver
+          properties: initial?.properties?.map(p => ({
+            commune: p.commune || undefined,
+            lieuDit: p.lieuDit || undefined,
+            section: p.section || undefined,
+            parcelle: p.parcelle || undefined,
+            surfaceCadastrale: p.surfaceCadastrale || undefined,
+          })) || []
+        } : {
+          properties: []
+        }),
       };
 
       await props.onSubmit(payload);
@@ -694,22 +703,22 @@ function EditPropertyModal({
       if (!commune.trim()) {
         throw new Error("La commune est obligatoire.");
       }
-      if (!section.trim()) {
-        throw new Error("La section est obligatoire.");
-      }
-      if (!parcelle.trim()) {
-        throw new Error("La parcelle est obligatoire.");
-      }
-
-      // Validation section : seulement des lettres, 1 à 2 caractères
-      const sectionUpper = section.toUpperCase().trim();
-      if (!/^[A-Z]{1,2}$/.test(sectionUpper)) {
-        throw new Error("La section doit contenir 1 ou 2 lettres.");
+      // Validation section : si remplie, seulement des lettres, 1 à 2 caractères
+      let sectionUpper: string | undefined;
+      if (section.trim()) {
+        sectionUpper = section.toUpperCase().trim();
+        if (!/^[A-Z]{1,2}$/.test(sectionUpper)) {
+          throw new Error("La section doit contenir 1 ou 2 lettres.");
+        }
       }
 
-      // Validation parcelle : seulement des chiffres
-      if (!/^\d+$/.test(parcelle.trim())) {
-        throw new Error("La parcelle ne peut contenir que des chiffres.");
+      // Validation parcelle : si remplie, seulement des chiffres
+      let parcelleValue: string | undefined;
+      if (parcelle.trim()) {
+        parcelleValue = parcelle.trim();
+        if (!/^\d+$/.test(parcelleValue)) {
+          throw new Error("La parcelle ne peut contenir que des chiffres.");
+        }
       }
 
       setBusy(true);
@@ -717,8 +726,8 @@ function EditPropertyModal({
       const newProperty = {
         commune: commune.trim(),
         lieuDit: lieuDit.trim() || undefined,
-        section: sectionUpper,
-        parcelle: parcelle.trim(),
+        section: sectionUpper || undefined,
+        parcelle: parcelleValue || undefined,
         surfaceCadastrale: surfaceCadastrale ? Number(surfaceCadastrale) : undefined,
       };
 
@@ -801,7 +810,7 @@ function EditPropertyModal({
 
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <div className="text-xs text-gray-600 mb-1">Section (1-2 lettres) *</div>
+              <div className="text-xs text-gray-600 mb-1">Section (1-2 lettres)</div>
               <input
                 type="text"
                 value={section}
@@ -811,11 +820,10 @@ function EditPropertyModal({
                 }}
                 className="w-full border rounded-lg px-3 py-2 text-sm"
                 maxLength={2}
-                required
               />
             </div>
             <div>
-              <div className="text-xs text-gray-600 mb-1">Parcelle *</div>
+              <div className="text-xs text-gray-600 mb-1">Parcelle</div>
               <input
                 type="text"
                 value={parcelle}
@@ -824,7 +832,6 @@ function EditPropertyModal({
                   setParcelle(value);
                 }}
                 className="w-full border rounded-lg px-3 py-2 text-sm"
-                required
               />
             </div>
           </div>

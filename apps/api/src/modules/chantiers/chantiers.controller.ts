@@ -141,6 +141,7 @@ const SaveChantierFicheSchema = z.object({
     deb: z.string(),
   }).default({ aba: "", deb: "" }),
   volumeMoulinValues: z.record(z.string(), z.string()).optional(),
+  facturationValues: z.record(z.string(), z.boolean()).optional(),
 });
 
 export async function getChantierFiche(req: Request, res: Response) {

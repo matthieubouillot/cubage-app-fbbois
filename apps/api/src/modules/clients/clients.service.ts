@@ -115,21 +115,15 @@ export async function createClientService(input: CreateClientPayload) {
   if (!NAME_RE.test(input.firstName)) throw new Error("Prénom invalide");
   if (!NAME_RE.test(input.lastName)) throw new Error("Nom invalide");
   
-  // Générer un email unique temporaire si non fourni
+  // Validation optionnelle : si email est rempli, il doit être valide
   let finalEmail: string;
   if (input.email?.trim()) {
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/i.test(input.email.trim())) {
       throw new Error("Email invalide");
     }
-    const existingClient = await prisma.client.findUnique({
-      where: { email: input.email.toLowerCase().trim() },
-    });
-    if (existingClient) {
-      throw new Error("Un client avec cet email existe déjà");
-    }
     finalEmail = input.email.toLowerCase().trim();
   } else {
-    // Générer un email temporaire unique
+    // Générer un email temporaire unique si non fourni
     finalEmail = `temp_${Date.now()}_${Math.random().toString(36).slice(2, 9)}@temp.com`;
   }
   
@@ -188,19 +182,10 @@ export async function updateClientService(id: string, input: UpdateClientPayload
   if (!NAME_RE.test(input.firstName)) throw new Error("Prénom invalide");
   if (!NAME_RE.test(input.lastName)) throw new Error("Nom invalide");
   
-  // Validation optionnelle : si email est rempli, il doit être valide et unique
+  // Validation optionnelle : si email est rempli, il doit être valide
   if (input.email?.trim()) {
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/i.test(input.email.trim())) {
       throw new Error("Email invalide");
-    }
-    const existingClient = await prisma.client.findFirst({
-      where: {
-        email: input.email.toLowerCase().trim(),
-        NOT: { id },
-      },
-    });
-    if (existingClient) {
-      throw new Error("Un client avec cet email existe déjà");
     }
   }
   
@@ -228,8 +213,25 @@ export async function updateClientService(id: string, input: UpdateClientPayload
   const finalPostalCode = input.postalCode?.trim() || existingClient.postalCode;
   const finalCity = input.city?.trim() || existingClient.city;
 
-  // Supprimer les anciennes propriétés et créer les nouvelles
-  await prisma.property.deleteMany({ where: { clientId: id } });
+  // Récupérer les propriétés existantes
+  const existingProperties = await prisma.property.findMany({
+    where: { clientId: id },
+  });
+
+  // Si des propriétés sont fournies, remplacer les anciennes par les nouvelles
+  // Sinon, conserver les propriétés existantes
+  const propertiesToCreate = input.properties?.map(p => ({
+    commune: p.commune?.trim() || null,
+    lieuDit: p.lieuDit?.trim() || null,
+    section: p.section?.toUpperCase().trim().slice(0, 2) || null,
+    parcelle: p.parcelle?.trim() || null,
+    surfaceCadastrale: p.surfaceCadastrale || null,
+  })) || [];
+
+  // Supprimer les anciennes propriétés seulement si de nouvelles sont fournies
+  if (input.properties !== undefined) {
+    await prisma.property.deleteMany({ where: { clientId: id } });
+  }
 
   const client = await prisma.client.update({
     where: { id },
@@ -241,15 +243,11 @@ export async function updateClientService(id: string, input: UpdateClientPayload
       street: finalStreet,
       postalCode: finalPostalCode,
       city: finalCity,
-      properties: {
-        create: input.properties?.map(p => ({
-          commune: p.commune?.trim() || null,
-          lieuDit: p.lieuDit?.trim() || null,
-          section: p.section?.toUpperCase().trim().slice(0, 2) || null,
-          parcelle: p.parcelle?.trim() || null,
-          surfaceCadastrale: p.surfaceCadastrale || null,
-        })) || [],
-      },
+      ...(input.properties !== undefined && {
+        properties: {
+          create: propertiesToCreate,
+        },
+      }),
     },
     select: {
       id: true,
