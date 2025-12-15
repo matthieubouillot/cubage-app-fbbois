@@ -247,11 +247,6 @@ export default function EditChantier() {
       setError(null);
       
       // Validation des champs obligatoires
-      if (!formData.propertyId || formData.propertyId === '') {
-        setError('Veuillez sélectionner une propriété');
-        return;
-      }
-      
       if (formData.bucheronIds.length === 0) {
         setError('Veuillez sélectionner au moins un bûcheron');
         return;
@@ -276,6 +271,7 @@ export default function EditChantier() {
       
       const submitData = {
         ...formData,
+        propertyId: formData.propertyId || undefined, // Permettre undefined si pas de propriété
         lotConventions
       };
       
@@ -373,12 +369,10 @@ export default function EditChantier() {
               
               {formData.clientId && (
                 <PropertySelector
-                  label="Propriété *"
+                  label="Propriété"
                   value={formData.propertyId || ''}
                   onChange={(propertyId) => setFormData(prev => ({ ...prev, propertyId }))}
                   properties={clients.find(c => c.id === formData.clientId)?.properties || []}
-                  required
-                  disabled={hasSaisies}
                 />
               )}
             </div>
