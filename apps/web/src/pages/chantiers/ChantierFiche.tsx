@@ -117,12 +117,17 @@ export default function ChantierFiche() {
           setVolumeMoulinValues(volumeMoulin);
           // Convertir les clés numériques en nombres pour facturationValues
           const facturation: Record<number, boolean> = {};
-          Object.keys(ficheData.facturationValues || {}).forEach((key) => {
-            const value = ficheData.facturationValues![Number(key)];
-            if (value !== undefined) {
-              facturation[Number(key)] = Boolean(value);
-            }
-          });
+          if (ficheData.facturationValues) {
+            Object.keys(ficheData.facturationValues).forEach((key) => {
+              const value = ficheData.facturationValues![key];
+              if (value !== undefined && value !== null) {
+                const numKey = Number(key);
+                if (!isNaN(numKey)) {
+                  facturation[numKey] = Boolean(value);
+                }
+              }
+            });
+          }
           setFacturationValues(facturation);
         } else {
           // Initialiser avec des valeurs vides si la fiche n'existe pas encore
@@ -1209,8 +1214,6 @@ export default function ChantierFiche() {
                   const resteAba = Math.max(0, volumeValue - factureAba);
                   const resteDeb = Math.max(0, volumeValue - factureDeb);
                   const fraisGestion = fraisGestionValues[idx] || "0.00";
-                  // Convertir facturationValues en format accessible (les clés sont des strings dans le contexte du PDF)
-                  const facturationChecked = facturationValues[idx] || false;
                   return `
                     <tr>
                       <td>${row.scierie}</td>
@@ -1221,7 +1224,6 @@ export default function ChantierFiche() {
                       <td>${resteAba.toLocaleString("fr-FR", { minimumFractionDigits: 3, maximumFractionDigits: 3 })}</td>
                       <td>${resteDeb.toLocaleString("fr-FR", { minimumFractionDigits: 3, maximumFractionDigits: 3 })}</td>
                       <td>${fraisGestion}</td>
-                      <td style="text-align: center;">${facturationChecked ? '✓' : ''}</td>
                     </tr>
                   `;
                 }).join('')}
@@ -1754,9 +1756,14 @@ export default function ChantierFiche() {
                             if (!isInitialLoad && id) {
                               try {
                                 setSaving(true);
+                                // Convertir les clés numériques en strings pour l'API
                                 const facturation: Record<string, boolean> = {};
-                                Object.keys(updated).forEach((key) => {
-                                  facturation[key] = updated[Number(key)];
+                                // Utiliser Object.keys pour obtenir toutes les clés (qui seront des strings)
+                                Object.keys(updated).forEach((keyStr) => {
+                                  const numKey = Number(keyStr);
+                                  if (!isNaN(numKey) && updated[numKey] !== undefined) {
+                                    facturation[keyStr] = updated[numKey];
+                                  }
                                 });
                                 const fraisGestion: Record<string, string> = {};
                                 Object.keys(fraisGestionValues).forEach((key) => {
@@ -1766,13 +1773,24 @@ export default function ChantierFiche() {
                                 Object.keys(volumeMoulinValues).forEach((key) => {
                                   volumeMoulin[key] = volumeMoulinValues[Number(key)];
                                 });
-                                await saveChantierFiche(id, {
+                                const saved = await saveChantierFiche(id, {
                                   aFacturerValues: aFacturerValues || {},
                                   fraisGestionValues: fraisGestion,
                                   prixUHT: prixUHT || { aba: "", deb: "" },
                                   volumeMoulinValues: volumeMoulin,
                                   facturationValues: facturation,
                                 });
+                                // Recharger les données sauvegardées pour s'assurer de la cohérence
+                                if (saved.facturationValues) {
+                                  const reloaded: Record<number, boolean> = {};
+                                  Object.keys(saved.facturationValues).forEach((key) => {
+                                    const numKey = Number(key);
+                                    if (!isNaN(numKey)) {
+                                      reloaded[numKey] = Boolean(saved.facturationValues![key]);
+                                    }
+                                  });
+                                  setFacturationValues(reloaded);
+                                }
                               } catch (error) {
                                 console.error("Erreur lors de la sauvegarde de la facturation:", error);
                               } finally {
