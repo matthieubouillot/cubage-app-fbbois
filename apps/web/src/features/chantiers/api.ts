@@ -1,4 +1,4 @@
-import { api, apiOptional } from "../../lib/api";
+import { api } from "../../lib/api";
 import { listChantiersOffline, deleteChantierOffline, trySyncChantiersQueue, getChantierOffline } from "./offline";
 
 export type Essence = { id: string; name: string };
