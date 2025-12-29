@@ -2063,6 +2063,10 @@ export default function ChantierFiche() {
                                 },
                               }));
                             }}
+                            onBlur={() => {
+                              // Sauvegarder automatiquement quand on quitte le champ
+                              saveFicheData();
+                            }}
                             disabled={!hasAbattage}
                             placeholder="0.000"
                             className={`w-20 text-right tabular-nums border rounded px-1.5 py-0.5 text-xs focus:outline-none focus:ring-2 focus:ring-black/20 ${
@@ -2084,6 +2088,10 @@ export default function ChantierFiche() {
                                   debardage: value,
                                 },
                               }));
+                            }}
+                            onBlur={() => {
+                              // Sauvegarder automatiquement quand on quitte le champ
+                              saveFicheData();
                             }}
                             disabled={!hasDebardage}
                             placeholder="0.000"
