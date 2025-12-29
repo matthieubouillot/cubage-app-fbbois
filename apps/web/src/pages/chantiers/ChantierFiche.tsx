@@ -961,6 +961,21 @@ export default function ChantierFiche() {
         setAFacturerValues((prev) => {
           const initialValues: Record<string, { abattage: string; debardage: string }> = {};
           
+          // D'abord, préserver toutes les valeurs existantes avec les nouvelles clés (entrepriseId_scierie)
+          Object.keys(prev).forEach((key) => {
+            const parts = key.split('_');
+            // Si la clé a exactement 2 parties (entrepriseId_scierie), c'est une nouvelle clé, on la préserve
+            if (parts.length === 2) {
+              const existingValue = prev[key];
+              if (existingValue && (existingValue.abattage || existingValue.debardage)) {
+                initialValues[key] = {
+                  abattage: existingValue.abattage || "",
+                  debardage: existingValue.debardage || "",
+                };
+              }
+            }
+          });
+          
           // Migrer les anciennes valeurs en les regroupant par entrepriseId_scierie
           const migratedValues = new Map<string, { abattage: number; debardage: number }>();
           Object.keys(prev).forEach((oldKey) => {
@@ -970,33 +985,38 @@ export default function ChantierFiche() {
               const scierie = parts.slice(1, -1).join('_'); // Gérer les scieries avec underscores
               const newKey = `${entrepriseId}_${scierie}`;
               
-              const oldValue = prev[oldKey];
-              const existing = migratedValues.get(newKey);
-              if (existing) {
-                existing.abattage += parseFloat(oldValue?.abattage || "0") || 0;
-                existing.debardage += parseFloat(oldValue?.debardage || "0") || 0;
-              } else {
-                migratedValues.set(newKey, {
-                  abattage: parseFloat(oldValue?.abattage || "0") || 0,
-                  debardage: parseFloat(oldValue?.debardage || "0") || 0,
-                });
+              // Ne migrer que si la nouvelle clé n'existe pas déjà dans initialValues
+              if (!initialValues[newKey]) {
+                const oldValue = prev[oldKey];
+                const existing = migratedValues.get(newKey);
+                if (existing) {
+                  existing.abattage += parseFloat(oldValue?.abattage || "0") || 0;
+                  existing.debardage += parseFloat(oldValue?.debardage || "0") || 0;
+                } else {
+                  migratedValues.set(newKey, {
+                    abattage: parseFloat(oldValue?.abattage || "0") || 0,
+                    debardage: parseFloat(oldValue?.debardage || "0") || 0,
+                  });
+                }
               }
             }
           });
           
-          // Convertir les valeurs migrées en chaînes
+          // Convertir les valeurs migrées en chaînes (seulement si elles n'existent pas déjà)
           migratedValues.forEach((value, key) => {
-            initialValues[key] = {
-              abattage: value.abattage > 0 ? value.abattage.toFixed(3) : "",
-              debardage: value.debardage > 0 ? value.debardage.toFixed(3) : "",
-            };
+            if (!initialValues[key]) {
+              initialValues[key] = {
+                abattage: value.abattage > 0 ? value.abattage.toFixed(3) : "",
+                debardage: value.debardage > 0 ? value.debardage.toFixed(3) : "",
+              };
+            }
           });
           
           // Initialiser les nouvelles clés si elles n'existent pas
           rows.forEach((row) => {
             row.scieries.forEach((scierieData) => {
               const key = `${row.entrepriseId}_${scierieData.scierie}`;
-              // Ne pas écraser si la valeur existe déjà (après migration)
+              // Ne pas écraser si la valeur existe déjà
               if (!initialValues[key]) {
                 initialValues[key] = {
                   abattage: "",
