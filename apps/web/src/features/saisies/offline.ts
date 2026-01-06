@@ -42,6 +42,7 @@ export async function listDebardeursOffline(): Promise<UserDTO[]> {
 export async function listSaisiesOffline(
   chantierId: string,
   qualityGroupId: string,
+  forceRefresh: boolean = false,
 ): Promise<SaisieRow[]> {
   if (isOnline()) {
     try {
@@ -49,7 +50,13 @@ export async function listSaisiesOffline(
       await cacheSaisiesList(chantierId, qualityGroupId, rows);
       return rows;
     } catch {
-      // fallback to cache
+      // fallback to cache only if not forcing refresh
+      if (!forceRefresh) {
+        const cached = await readCachedSaisiesList(chantierId, qualityGroupId);
+        return (cached as SaisieRow[] | null) ?? [];
+      }
+      // If forceRefresh is true and we're online but the request failed, throw the error
+      throw new Error("Impossible de rafraîchir les données depuis le serveur");
     }
   }
   const cached = await readCachedSaisiesList(chantierId, qualityGroupId);
@@ -383,10 +390,12 @@ export async function trySyncQueue() {
         await clearQueueItem(item.id!);
       } catch (error: any) {
         // Si erreur d'authentification, arrêter complètement la synchronisation
+        // Note: La déconnexion et redirection sont déjà gérées dans api.ts
         if (error?.status === 401 || 
             error?.message?.includes('401') || 
             error?.message?.includes('Token manquant') ||
-            error?.message?.includes('Token expiré')) {
+            error?.message?.includes('Token expiré') ||
+            error?.message?.includes('Session expirée')) {
           break;
         }
         // Pour les autres erreurs, continuer avec l'item suivant

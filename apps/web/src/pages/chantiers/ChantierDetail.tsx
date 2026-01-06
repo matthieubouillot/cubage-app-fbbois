@@ -247,10 +247,11 @@ export default function ChantierDetail() {
           label: `${qg.essences.map(e => e.name).join(' + ')} ${qg.qualite.name} ${qg.scieur.name}`,
         }));
         // For each qualite, fetch rows and aggregate by user
+        // Force refresh to ensure we get the latest data from the server
         const userMap: Record<string, { user: User; values: Record<string, number>; total: number }> = {};
         let grand = 0;
         for (const qg of (data.qualityGroups || [])) {
-          const qRows = await listSaisies(data.id, qg.id);
+          const qRows = await listSaisies(data.id, qg.id, true); // forceRefresh = true
           for (const r of qRows as SaisieRow[]) {
             const uid = r.user?.id;
             if (!uid || !r.user) continue;
@@ -270,10 +271,11 @@ export default function ChantierDetail() {
 
         // Calculer les totaux journaliers (aujourd'hui) pour les superviseurs
         // Réutiliser todayYmd déjà déclaré plus haut
+        // Force refresh to ensure we get the latest data from the server
         const dailyUserMap: Record<string, { user: User; total: number }> = {};
         let dailyGrand = 0;
         for (const qg of (data.qualityGroups || [])) {
-          const qRows = await listSaisies(data.id, qg.id);
+          const qRows = await listSaisies(data.id, qg.id, true); // forceRefresh = true
           for (const r of qRows as SaisieRow[]) {
             const uid = r.user?.id;
             if (!uid || !r.user) continue;

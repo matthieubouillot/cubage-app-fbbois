@@ -1,3 +1,5 @@
+import { logout } from "../features/auth/auth";
+
 export const API_URL = (import.meta.env.VITE_API_URL as string) || "";
 
 function joinUrl(base: string, path: string) {
@@ -54,11 +56,16 @@ export async function api<T>(path: string, options: RequestInit = {}): Promise<T
     
     // Gestion spéciale pour les erreurs d'authentification
     if (res.status === 401) {
-      if (!token) {
-        throw new Error("Token manquant");
-      } else {
-        throw new Error("Token expiré - reconnexion nécessaire");
+      // Déconnecter l'utilisateur et rediriger vers la page de login
+      if (typeof window !== "undefined") {
+        logout();
+        // Éviter la redirection si on est déjà sur la page de login
+        if (!window.location.pathname.includes("/login")) {
+          // Utiliser replace pour éviter le retour en arrière
+          window.location.replace("/login");
+        }
       }
+      throw new Error("Session expirée - Veuillez vous reconnecter");
     }
     
     throw new Error(msg);

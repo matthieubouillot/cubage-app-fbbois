@@ -7,6 +7,8 @@ const APP_SHELL = [
 ];
 
 self.addEventListener("install", (e) => {
+  // Forcer l'activation immédiate du nouveau Service Worker
+  self.skipWaiting();
   e.waitUntil(
     caches.open(CACHE).then((c) => c.addAll(APP_SHELL))
   );

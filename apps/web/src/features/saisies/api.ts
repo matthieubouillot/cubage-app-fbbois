@@ -11,8 +11,8 @@ import type { SaisieRow, SaisieStats } from "./types";
 
 export type { SaisieRow } from "./types";
 
-export function listSaisies(chantierId: string, qualityGroupId: string) {
-  return listSaisiesOffline(chantierId, qualityGroupId);
+export function listSaisies(chantierId: string, qualityGroupId: string, forceRefresh: boolean = false) {
+  return listSaisiesOffline(chantierId, qualityGroupId, forceRefresh);
 }
 
 export function createSaisie(payload: {

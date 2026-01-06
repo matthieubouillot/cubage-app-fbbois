@@ -26,7 +26,27 @@
         });
       } else if ('serviceWorker' in navigator && !isDev) {
         window.addEventListener('load', () => {
-          navigator.serviceWorker.register('/sw.js').catch(() => {});
+          navigator.serviceWorker.register('/sw.js')
+            .then((registration) => {
+              // Vérifier les mises à jour toutes les heures
+              setInterval(() => {
+                registration.update();
+              }, 3600000); // 1 heure
+              
+              // Écouter les mises à jour du Service Worker
+              registration.addEventListener('updatefound', () => {
+                const newWorker = registration.installing;
+                if (newWorker) {
+                  newWorker.addEventListener('statechange', () => {
+                    if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
+                      // Nouveau Service Worker disponible, recharger la page
+                      window.location.reload();
+                    }
+                  });
+                }
+              });
+            })
+            .catch(() => {});
         });
       }
     </script>
