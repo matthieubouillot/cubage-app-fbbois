@@ -63,10 +63,25 @@ export default function ChantierDetail() {
   const [mutTick, setMutTick] = useState(0);
   const onMutated = () => setMutTick((t) => t + 1);
 
+  // Rafraîchir automatiquement quand la page redevient visible
+  useEffect(() => {
+    const handleVisibilityChange = () => {
+      if (!document.hidden && id) {
+        // Recharger les données du chantier quand on revient sur la page
+        fetchChantier(id, true)
+          .then(setData)
+          .catch((e: any) => setErr(e.message || "Erreur"));
+      }
+    };
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    return () => document.removeEventListener('visibilitychange', handleVisibilityChange);
+  }, [id]);
+
   useEffect(() => {
     (async () => {
       try {
-        const d = await fetchChantier(id!);
+        // Forcer le rafraîchissement pour avoir les données à jour
+        const d = await fetchChantier(id!, true);
         setData(d);
       } catch (e: any) {
         setErr(e.message || "Erreur");
@@ -165,8 +180,8 @@ export default function ChantierDetail() {
           setGlobalStats(s); // Les superviseurs voient déjà les stats globales
         }
         
-        // Récupérer les rows pour les calculs suivants
-        const rows = await listSaisies(data.id, activeQualityGroup.id);
+        // Récupérer les rows pour les calculs suivants (forcer le rafraîchissement)
+        const rows = await listSaisies(data.id, activeQualityGroup.id, true);
         const current = getUser();
         const toLocalYmd = (d: Date) => {
           const y = d.getFullYear();

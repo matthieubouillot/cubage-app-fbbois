@@ -1,4 +1,4 @@
-const CACHE = "cubage-shell-v7";
+const CACHE = "cubage-shell-v8";
 const APP_SHELL = [
   "/",
   "/index.html",
@@ -58,35 +58,24 @@ self.addEventListener("fetch", (e) => {
     return;
   }
 
-  // Pour les fichiers JS/CSS avec hash (index-ABC123.js): cache-first car ils ne changent jamais
-  // Pour les autres assets: network-first
+  // Network-first pour TOUS les fichiers (y compris ceux avec hash) pour forcer les mises à jour
+  // Le hash change à chaque build, donc c'est un nouveau fichier de toute façon
   if (url.origin === self.location.origin) {
-    const hasHashInFilename = /\-[a-zA-Z0-9]{8,}\.(js|css)$/.test(url.pathname);
-    
-    if (hasHashInFilename) {
-      // Cache-first pour les fichiers avec hash (immutables)
-      e.respondWith(
-        caches.match(req).then((cached) => {
-          if (cached) return cached;
-          return fetch(req).then((res) => {
+    e.respondWith(
+      fetch(req)
+        .then((res) => {
+          // Mettre à jour le cache avec la nouvelle version
+          if (res.ok) {
             const resClone = res.clone();
             caches.open(CACHE).then((c) => c.put(req, resClone));
-            return res;
-          });
+          }
+          return res;
         })
-      );
-    } else {
-      // Network-first pour les autres assets (peuvent changer)
-      e.respondWith(
-        fetch(req)
-          .then((res) => {
-            const resClone = res.clone();
-            caches.open(CACHE).then((c) => c.put(req, resClone));
-            return res;
-          })
-          .catch(() => caches.match(req)) // Fallback sur le cache si offline
-      );
-    }
+        .catch(() => {
+          // Fallback sur le cache uniquement si offline ou erreur réseau
+          return caches.match(req);
+        })
+    );
     return;
   }
 

@@ -132,12 +132,12 @@ export type UpdateChantier = {
 
 
 
-export function fetchChantiers() {
-  return listChantiersOffline();
+export function fetchChantiers(forceRefresh: boolean = false) {
+  return listChantiersOffline(forceRefresh);
 }
 
-export function fetchChantier(id: string) {
-  return getChantierOffline(id);
+export function fetchChantier(id: string, forceRefresh: boolean = false) {
+  return getChantierOffline(id, forceRefresh);
 }
 
 export function deleteChantier(id: string) {

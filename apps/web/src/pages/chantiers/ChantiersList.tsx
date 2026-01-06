@@ -38,10 +38,22 @@ export default function ChantiersList() {
     typeof navigator !== "undefined" ? !navigator.onLine : false,
   );
 
+  // Rafraîchir automatiquement quand la page redevient visible
+  useEffect(() => {
+    const handleVisibilityChange = () => {
+      if (!document.hidden) {
+        refresh();
+      }
+    };
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    return () => document.removeEventListener('visibilitychange', handleVisibilityChange);
+  }, []);
+
   async function refresh() {
     try {
       setErr(null);
-      const data = await fetchChantiers();
+      // Forcer le rafraîchissement pour avoir les données à jour
+      const data = await fetchChantiers(true);
       setRows(data);
       
       // Charger les statuts de facturation pour chaque chantier

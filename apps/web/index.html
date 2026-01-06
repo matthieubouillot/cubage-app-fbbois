@@ -28,23 +28,35 @@
         window.addEventListener('load', () => {
           navigator.serviceWorker.register('/sw.js')
             .then((registration) => {
-              // Vérifier les mises à jour toutes les heures
+              // Vérifier les mises à jour toutes les 5 minutes
               setInterval(() => {
                 registration.update();
-              }, 3600000); // 1 heure
+              }, 300000); // 5 minutes
+              
+              // Vérifier aussi à chaque focus de la page (quand l'utilisateur revient sur l'app)
+              document.addEventListener('visibilitychange', () => {
+                if (!document.hidden) {
+                  registration.update();
+                }
+              });
               
               // Écouter les mises à jour du Service Worker
               registration.addEventListener('updatefound', () => {
                 const newWorker = registration.installing;
                 if (newWorker) {
                   newWorker.addEventListener('statechange', () => {
-                    if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
-                      // Nouveau Service Worker disponible, recharger la page
-                      window.location.reload();
+                    if (newWorker.state === 'installed') {
+                      if (navigator.serviceWorker.controller) {
+                        // Nouveau Service Worker disponible, recharger la page immédiatement
+                        window.location.reload();
+                      }
                     }
                   });
                 }
               });
+              
+              // Vérifier aussi au chargement initial
+              registration.update();
             })
             .catch(() => {});
         });
