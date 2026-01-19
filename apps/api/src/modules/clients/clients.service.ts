@@ -123,8 +123,8 @@ export async function createClientService(input: CreateClientPayload) {
     }
     finalEmail = input.email.toLowerCase().trim();
   } else {
-    // Générer un email temporaire unique si non fourni
-    finalEmail = `temp_${Date.now()}_${Math.random().toString(36).slice(2, 9)}@temp.com`;
+    // Pas d'email fourni : mettre une chaîne vide
+    finalEmail = "";
   }
   
   // Validation optionnelle : si téléphone est rempli, il doit être valide
@@ -205,8 +205,9 @@ export async function updateClientService(id: string, input: UpdateClientPayload
   }
 
   // Utiliser les valeurs fournies ou conserver les existantes
-  const finalEmail = input.email?.trim() 
-    ? input.email.toLowerCase().trim() 
+  // Si email est fourni (même vide), l'utiliser, sinon conserver l'existant
+  const finalEmail = input.email !== undefined
+    ? (input.email.trim() ? input.email.toLowerCase().trim() : "")
     : existingClient.email;
   const finalPhone = input.phone?.trim() || existingClient.phone;
   const finalStreet = input.street?.trim() || existingClient.street;
