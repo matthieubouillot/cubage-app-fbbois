@@ -1,6 +1,9 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { useParams, useNavigate, Link } from "react-router-dom";
 import { MapPin, Map, FileText } from "lucide-react";
+import jsPDF from "jspdf";
+import html2canvas from "html2canvas";
+import { DEFAULT_MAP_LAYER } from "../../config/maps";
 
 import {
   fetchChantier,
@@ -405,18 +408,8 @@ export default function ChantierDetail() {
           continue;
         }
         
-        // Générer le plan de localisation pour ce quality group
-        const html = generateLocationPlanHTML(data, qg, gpsPoints);
-        const blob = new Blob([html], { type: 'text/html' });
-        const url = URL.createObjectURL(blob);
-        
-        const link = document.createElement('a');
-        link.href = url;
-        link.download = `plan-localisation-${qg.essences.map(e => e.name).join('-')}-${qg.qualite.name}-${qg.scieur.name}.html`;
-        document.body.appendChild(link);
-        link.click();
-        document.body.removeChild(link);
-        URL.revokeObjectURL(url);
+        // Générer le PDF pour ce quality group
+        await generateLocationPlanPDF(data, qg, gpsPoints);
         
         // Attendre un peu entre chaque téléchargement
         await new Promise(resolve => setTimeout(resolve, 500));
@@ -427,6 +420,374 @@ export default function ChantierDetail() {
     }
   }
 
+  async function generateLocationPlanPDF(chantier: ChantierDetail, qg: any, gpsPoints: any[]) {
+    const qualityGroupName = `${qg.essences.map((e: any) => e.name).join(' + ')} ${qg.qualite.name} ${qg.scieur.name}`;
+    const property = chantier.property;
+    const client = chantier.client;
+    const lotConvention = { lot: qg.lot || null, convention: qg.convention || null };
+    
+    // Créer un nouveau document PDF
+    const pdf = new jsPDF({
+      orientation: 'portrait',
+      unit: 'mm',
+      format: 'a4'
+    });
+    
+    const pageWidth = pdf.internal.pageSize.getWidth();
+    const pageHeight = pdf.internal.pageSize.getHeight();
+    const margin = 20;
+    const contentWidth = pageWidth - (margin * 2);
+    let yPos = margin;
+    
+    // Fonction pour ajouter une nouvelle page si nécessaire
+    const checkNewPage = (requiredHeight: number) => {
+      if (yPos + requiredHeight > pageHeight - margin - 10) {
+        pdf.addPage();
+        yPos = margin;
+      }
+    };
+    
+    // Fonction pour ajouter le numéro de page en bas à droite
+    const addPageNumber = () => {
+      const pageCount = pdf.getNumberOfPages();
+      for (let i = 1; i <= pageCount; i++) {
+        pdf.setPage(i);
+        pdf.setFontSize(9);
+        pdf.setFont('helvetica', 'normal');
+        pdf.setTextColor(128, 128, 128);
+        pdf.text(
+          `Page ${i} / ${pageCount}`,
+          pageWidth - margin,
+          pageHeight - 10,
+          { align: 'right' }
+        );
+        pdf.setTextColor(0, 0, 0); // Remettre en noir
+      }
+    };
+    
+    // ========== EN-TÊTE PROFESSIONNEL ==========
+    // Titre principal (réduit)
+    pdf.setFontSize(18);
+    pdf.setFont('helvetica', 'bold');
+    pdf.setTextColor(30, 30, 30);
+    pdf.text('Plan de Localisation', pageWidth / 2, yPos, { align: 'center' });
+    yPos += 8;
+    
+    // Coupe n° centré (réduit)
+    pdf.setFontSize(13);
+    pdf.setFont('helvetica', 'bold');
+    pdf.text(`Coupe n° ${chantier.numeroCoupe}`, pageWidth / 2, yPos, { align: 'center' });
+    yPos += 7;
+    
+    // ========== INFORMATIONS CLIENT ET PROPRIÉTÉ (DEUX COLONNES) ==========
+    checkNewPage(40);
+    
+    pdf.setFontSize(9);
+    pdf.setTextColor(30, 30, 30);
+    const compactLineHeight = 7;
+    const leftColX = margin;
+    const rightColX = pageWidth / 2 + 10;
+    let leftY = yPos;
+    let rightY = yPos;
+    
+    // Colonne gauche : Client, Commune, Lieu-dit
+    if (client) {
+      pdf.setFont('helvetica', 'bold');
+      pdf.text('Client', leftColX, leftY);
+      pdf.setFont('helvetica', 'normal');
+      pdf.text(`${client.firstName} ${client.lastName}`, leftColX + 25, leftY);
+      leftY += compactLineHeight;
+    }
+    
+    if (property?.commune) {
+      pdf.setFont('helvetica', 'bold');
+      pdf.text('Commune', leftColX, leftY);
+      pdf.setFont('helvetica', 'normal');
+      pdf.text(property.commune, leftColX + 25, leftY);
+      leftY += compactLineHeight;
+    }
+    
+    if (property?.lieuDit) {
+      pdf.setFont('helvetica', 'bold');
+      pdf.text('Lieu-dit', leftColX, leftY);
+      pdf.setFont('helvetica', 'normal');
+      pdf.text(property.lieuDit, leftColX + 25, leftY);
+      leftY += compactLineHeight;
+    }
+    
+    // Colonne droite : Section / Parcelle, Surface
+    if (property?.section || property?.parcelle) {
+      pdf.setFont('helvetica', 'bold');
+      pdf.text('Section / Parcelle', rightColX, rightY);
+      rightY += 4;
+      pdf.setFont('helvetica', 'normal');
+      const sectionParcelle = [];
+      if (property.section) sectionParcelle.push(property.section.toUpperCase());
+      if (property.parcelle) sectionParcelle.push(property.parcelle);
+      pdf.text(sectionParcelle.join(' / '), rightColX, rightY);
+      rightY += compactLineHeight;
+    }
+    
+    if (property?.surfaceCadastrale) {
+      pdf.setFont('helvetica', 'bold');
+      pdf.text('Surface', rightColX, rightY);
+      pdf.setFont('helvetica', 'normal');
+      pdf.text(`${Number(property.surfaceCadastrale).toFixed(0)} m²`, rightColX + 20, rightY);
+      rightY += compactLineHeight;
+    }
+    
+    // Prendre la hauteur maximale des deux colonnes
+    yPos = Math.max(leftY, rightY) + 5;
+    
+    // Barre grise de séparation très affinée
+    pdf.setDrawColor(230, 230, 230);
+    pdf.setLineWidth(0.3);
+    pdf.line(margin, yPos, pageWidth - margin, yPos);
+    yPos += 6;
+    
+    // ========== ESSENCE/QUALITÉ/SCIEUR ET LOT/CONVENTION (CENTRÉS) ==========
+    // Essence/Qualité/Scieur (réduit)
+    pdf.setFont('helvetica', 'bold');
+    pdf.setFontSize(10);
+    pdf.setTextColor(30, 30, 30);
+    pdf.text(qualityGroupName, pageWidth / 2, yPos, { align: 'center' });
+    yPos += 6;
+    
+    // Lot et Convention sur la même ligne (réduit)
+    if (lotConvention.lot || lotConvention.convention) {
+      pdf.setFontSize(9);
+      pdf.setTextColor(30, 30, 30);
+      
+      const lotLabel = 'Lot : ';
+      const conventionLabel = 'Convention : ';
+      const lotValue = lotConvention.lot || '';
+      const conventionValue = lotConvention.convention || '';
+      
+      // Construire le texte complet pour calculer la largeur totale
+      let fullText = '';
+      if (lotConvention.lot && lotConvention.convention) {
+        fullText = `${lotLabel}${lotValue} • ${conventionLabel}${conventionValue}`;
+      } else if (lotConvention.lot) {
+        fullText = `${lotLabel}${lotValue}`;
+      } else if (lotConvention.convention) {
+        fullText = `${conventionLabel}${conventionValue}`;
+      }
+      
+      if (fullText) {
+        // Calculer la position de départ pour centrer le texte
+        pdf.setFont('helvetica', 'normal');
+        const textWidth = pdf.getTextWidth(fullText);
+        let xPos = (pageWidth - textWidth) / 2;
+        
+        if (lotConvention.lot && lotConvention.convention) {
+          // "Lot : " en gras
+          pdf.setFont('helvetica', 'bold');
+          pdf.text(lotLabel, xPos, yPos);
+          xPos += pdf.getTextWidth(lotLabel);
+          
+          // Valeur du lot en normal
+          pdf.setFont('helvetica', 'normal');
+          pdf.text(lotValue, xPos, yPos);
+          xPos += pdf.getTextWidth(lotValue);
+          
+          // Séparateur
+          pdf.text(' • ', xPos, yPos);
+          xPos += pdf.getTextWidth(' • ');
+          
+          // "Convention : " en gras
+          pdf.setFont('helvetica', 'bold');
+          pdf.text(conventionLabel, xPos, yPos);
+          xPos += pdf.getTextWidth(conventionLabel);
+          
+          // Valeur de la convention en normal
+          pdf.setFont('helvetica', 'normal');
+          pdf.text(conventionValue, xPos, yPos);
+        } else if (lotConvention.lot) {
+          // "Lot : " en gras
+          pdf.setFont('helvetica', 'bold');
+          pdf.text(lotLabel, xPos, yPos);
+          xPos += pdf.getTextWidth(lotLabel);
+          
+          // Valeur du lot en normal
+          pdf.setFont('helvetica', 'normal');
+          pdf.text(lotValue, xPos, yPos);
+        } else if (lotConvention.convention) {
+          // "Convention : " en gras
+          pdf.setFont('helvetica', 'bold');
+          pdf.text(conventionLabel, xPos, yPos);
+          xPos += pdf.getTextWidth(conventionLabel);
+          
+          // Valeur de la convention en normal
+          pdf.setFont('helvetica', 'normal');
+          pdf.text(conventionValue, xPos, yPos);
+        }
+        
+        yPos += 5;
+      }
+    }
+    
+    yPos += 6;
+    
+    // Remettre la couleur par défaut
+    pdf.setTextColor(0, 0, 0);
+    
+    // ========== POINTS GPS AVEC CARTES ==========
+    if (gpsPoints && gpsPoints.length > 0) {
+      for (let i = 0; i < gpsPoints.length; i++) {
+        const point = gpsPoints[i];
+        checkNewPage(90); // Espace nécessaire pour un point avec sa carte
+        
+        // Informations du point (centrées, réduites)
+        pdf.setFont('helvetica', 'bold');
+        pdf.setFontSize(11);
+        pdf.setTextColor(30, 30, 30);
+        pdf.text(`Point ${i + 1}`, pageWidth / 2, yPos, { align: 'center' });
+        yPos += 5;
+        
+        // Coordonnées (centrées, réduites)
+        pdf.setFont('helvetica', 'normal');
+        pdf.setFontSize(9);
+        pdf.setTextColor(100, 100, 100);
+        pdf.text(
+          `${point.latitude.toFixed(6)}, ${point.longitude.toFixed(6)}`,
+          pageWidth / 2,
+          yPos,
+          { align: 'center' }
+        );
+        yPos += 5;
+        
+        // Notes si présentes
+        if (point.notes) {
+          pdf.setFontSize(10);
+          pdf.setTextColor(80, 80, 80);
+          const notesLines = pdf.splitTextToSize(point.notes, contentWidth);
+          notesLines.forEach((line: string) => {
+            pdf.text(line, margin, yPos);
+            yPos += 5;
+          });
+        }
+        
+        yPos += 3;
+        
+        // Carte en orientation normale avec ratio 4:3 (plus large et naturelle)
+        const mapWidth = contentWidth * 0.95; // Utiliser 95% de la largeur disponible
+        const mapHeight = (mapWidth * 3) / 4; // Ratio 4:3 pour une carte bien proportionnée et rectangulaire
+        const mapY = yPos;
+        const mapX = (pageWidth - mapWidth) / 2; // Centrer la carte
+        
+        checkNewPage(mapHeight + 10);
+        
+        // Miniature de la carte (plus grande pour le PDF)
+        // Utiliser html2canvas pour capturer une carte Leaflet créée dynamiquement
+        try {
+          const mapZoom = 16;
+          
+          // Créer un élément div temporaire pour la carte Leaflet (plus grande pour meilleure qualité)
+          const mapDiv = document.createElement('div');
+          const mapId = `temp-map-${i}-${Date.now()}`;
+          mapDiv.id = mapId;
+          mapDiv.style.width = '800px'; // Augmenté pour meilleure qualité
+          mapDiv.style.height = '600px'; // Ratio 4:3 maintenu (800x600)
+          mapDiv.style.position = 'fixed';
+          mapDiv.style.left = '-9999px';
+          mapDiv.style.top = '0';
+          mapDiv.style.zIndex = '-9999';
+          mapDiv.style.backgroundColor = '#f0f0f0';
+          document.body.appendChild(mapDiv);
+          
+          // Charger Leaflet dynamiquement si nécessaire
+          let L: any = (window as any).L;
+          if (!L || typeof L.map !== 'function') {
+            // Charger Leaflet depuis CDN
+            await new Promise((resolve, reject) => {
+              const script = document.createElement('script');
+              script.src = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.js';
+              script.onload = () => {
+                L = (window as any).L;
+                // Charger aussi le CSS
+                const link = document.createElement('link');
+                link.rel = 'stylesheet';
+                link.href = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.css';
+                document.head.appendChild(link);
+                resolve(null);
+              };
+              script.onerror = reject;
+              document.head.appendChild(script);
+            });
+          }
+          
+          // Créer la carte Leaflet
+          const tempMap = L.map(mapId, {
+            center: [point.latitude, point.longitude],
+            zoom: mapZoom,
+            zoomControl: false,
+            attributionControl: false
+          });
+          
+          // Utiliser la même couche IGN que dans l'interface pour voir les chemins
+          L.tileLayer(DEFAULT_MAP_LAYER.url, {
+            maxZoom: DEFAULT_MAP_LAYER.maxZoom,
+            attribution: ''
+          }).addTo(tempMap);
+          
+          // Ajouter un marqueur
+          const icon = L.icon({
+            iconUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon.png',
+            iconSize: [25, 41],
+            iconAnchor: [12, 41]
+          });
+          L.marker([point.latitude, point.longitude], { icon }).addTo(tempMap);
+          
+          // Attendre que les tuiles se chargent
+          await new Promise(resolve => {
+            tempMap.whenReady(() => {
+              // Attendre un peu plus pour que toutes les tuiles se chargent
+              setTimeout(resolve, 2000);
+            });
+          });
+          
+          // Capturer avec html2canvas
+          const canvas = await html2canvas(mapDiv, {
+            width: 800,
+            height: 600,
+            useCORS: true,
+            allowTaint: false,
+            scale: 1,
+            logging: false
+          });
+          
+          const imgData = canvas.toDataURL('image/jpeg', 0.8);
+          
+          // Ajouter la carte avec orientation normale (centrée et réduite)
+          pdf.addImage(imgData, 'JPEG', mapX, mapY, mapWidth, mapHeight);
+          
+          // Nettoyer
+          tempMap.remove();
+          document.body.removeChild(mapDiv);
+        } catch (error) {
+          console.error('Erreur lors de la génération de la carte:', error);
+          // En cas d'erreur, afficher un message
+          pdf.setFontSize(9);
+          pdf.setTextColor(150, 150, 150);
+          pdf.text('Carte non disponible', margin, mapY + 20);
+          pdf.setTextColor(0, 0, 0);
+        }
+        
+        // Espacement après chaque point
+        yPos = mapY + mapHeight + 12;
+      }
+    }
+    
+    // Ajouter les numéros de page en bas à droite
+    addPageNumber();
+    
+    // Sauvegarder le PDF
+    const fileName = `plan-localisation-${qg.essences.map((e: any) => e.name).join('-')}-${qg.qualite.name}-${qg.scieur.name}.pdf`;
+    pdf.save(fileName);
+  }
+
+  /* 
+  // Code HTML commenté - remplacé par la génération PDF
   function generateLocationPlanHTML(chantier: ChantierDetail, qg: any, gpsPoints: any[]) {
     const qualityGroupName = `${qg.essences.map((e: any) => e.name).join(' + ')} ${qg.qualite.name} ${qg.scieur.name}`;
     const qualityGroupNameFormatted = `<strong>${qg.essences.map((e: any) => e.name).join(' + ')}</strong> <strong>${qg.qualite.name}</strong> <strong>${qg.scieur.name}</strong>`;
@@ -570,6 +931,7 @@ export default function ChantierDetail() {
 </body>
 </html>`;
   }
+  */
 
   function buildExportHtmlWithPageNumbers(
     chantier: ChantierDetail,
@@ -1122,16 +1484,7 @@ export default function ChantierDetail() {
                 try {
                   const gpsPoints = await fetchGPSPoints(data.id, activeQualityGroup.id);
                   if (gpsPoints && gpsPoints.length > 0) {
-                    const html = generateLocationPlanHTML(data, activeQualityGroup, gpsPoints);
-                    const blob = new Blob([html], { type: 'text/html' });
-                    const url = URL.createObjectURL(blob);
-                    const link = document.createElement('a');
-                    link.href = url;
-                    link.download = `plan-localisation-${activeQualityGroup.essences.map(e => e.name).join('-')}-${activeQualityGroup.qualite.name}-${activeQualityGroup.scieur.name}.html`;
-                    document.body.appendChild(link);
-                    link.click();
-                    document.body.removeChild(link);
-                    URL.revokeObjectURL(url);
+                    await generateLocationPlanPDF(data, activeQualityGroup, gpsPoints);
                   }
                 } catch (error) {
                   console.error('Erreur lors de l\'export du plan de localisation:', error);
