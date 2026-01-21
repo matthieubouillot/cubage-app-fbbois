@@ -219,19 +219,47 @@ export async function updateClientService(id: string, input: UpdateClientPayload
     where: { clientId: id },
   });
 
-  // Si des propriétés sont fournies, remplacer les anciennes par les nouvelles
-  // Sinon, conserver les propriétés existantes
-  const propertiesToCreate = input.properties?.map(p => ({
-    commune: p.commune?.trim() || null,
-    lieuDit: p.lieuDit?.trim() || null,
-    section: p.section?.toUpperCase().trim().slice(0, 2) || null,
-    parcelle: p.parcelle?.trim() || null,
-    surfaceCadastrale: p.surfaceCadastrale || null,
-  })) || [];
-
-  // Supprimer les anciennes propriétés seulement si de nouvelles sont fournies
+  // Si des propriétés sont fournies, mettre à jour intelligemment pour préserver les IDs
   if (input.properties !== undefined) {
-    await prisma.property.deleteMany({ where: { clientId: id } });
+    const propertiesToProcess = input.properties.map(p => ({
+      commune: p.commune?.trim() || null,
+      lieuDit: p.lieuDit?.trim() || null,
+      section: p.section?.toUpperCase().trim().slice(0, 2) || null,
+      parcelle: p.parcelle?.trim() || null,
+      surfaceCadastrale: p.surfaceCadastrale || null,
+    }));
+
+    // Mettre à jour les propriétés existantes par index si possible
+    const minLength = Math.min(existingProperties.length, propertiesToProcess.length);
+    
+    // Mettre à jour les propriétés existantes qui correspondent par index
+    for (let i = 0; i < minLength; i++) {
+      await prisma.property.update({
+        where: { id: existingProperties[i].id },
+        data: propertiesToProcess[i],
+      });
+    }
+
+    // Supprimer les propriétés en trop
+    if (existingProperties.length > propertiesToProcess.length) {
+      const idsToDelete = existingProperties
+        .slice(propertiesToProcess.length)
+        .map(p => p.id);
+      await prisma.property.deleteMany({
+        where: { id: { in: idsToDelete } },
+      });
+    }
+
+    // Créer les nouvelles propriétés
+    if (propertiesToProcess.length > existingProperties.length) {
+      const propertiesToCreate = propertiesToProcess.slice(existingProperties.length);
+      await prisma.property.createMany({
+        data: propertiesToCreate.map(p => ({
+          ...p,
+          clientId: id,
+        })),
+      });
+    }
   }
 
   const client = await prisma.client.update({
@@ -244,11 +272,6 @@ export async function updateClientService(id: string, input: UpdateClientPayload
       street: finalStreet,
       postalCode: finalPostalCode,
       city: finalCity,
-      ...(input.properties !== undefined && {
-        properties: {
-          create: propertiesToCreate,
-        },
-      }),
     },
     select: {
       id: true,

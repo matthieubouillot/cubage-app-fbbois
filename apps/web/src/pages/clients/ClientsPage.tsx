@@ -226,9 +226,14 @@ export default function ClientsPage() {
           initial={editing}
           onClose={() => setEditing(null)}
           onSubmit={async (payload) => {
-            await updateClient(editing.id, payload);
-            setEditing(null);
-            await refresh();
+            try {
+              await updateClient(editing.id, payload);
+              await refresh();
+              setEditing(null);
+            } catch (error: any) {
+              // L'erreur sera gérée par le modal
+              throw error;
+            }
           }}
         />
       )}

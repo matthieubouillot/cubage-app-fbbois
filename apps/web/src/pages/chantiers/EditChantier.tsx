@@ -271,7 +271,7 @@ export default function EditChantier() {
       
       const submitData = {
         ...formData,
-        propertyId: formData.propertyId || undefined, // Permettre undefined si pas de propriété
+        propertyId: formData.propertyId && formData.propertyId.trim() !== '' ? formData.propertyId : undefined, // Permettre undefined si pas de propriété
         lotConventions
       };
       
