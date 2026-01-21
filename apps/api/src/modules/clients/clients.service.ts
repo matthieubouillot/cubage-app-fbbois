@@ -205,14 +205,22 @@ export async function updateClientService(id: string, input: UpdateClientPayload
   }
 
   // Utiliser les valeurs fournies ou conserver les existantes
-  // Si email est fourni (même vide), l'utiliser, sinon conserver l'existant
+  // Si un champ est fourni (même vide), l'utiliser, sinon conserver l'existant
   const finalEmail = input.email !== undefined
     ? (input.email.trim() ? input.email.toLowerCase().trim() : "")
     : existingClient.email;
-  const finalPhone = input.phone?.trim() || existingClient.phone;
-  const finalStreet = input.street?.trim() || existingClient.street;
-  const finalPostalCode = input.postalCode?.trim() || existingClient.postalCode;
-  const finalCity = input.city?.trim() || existingClient.city;
+  const finalPhone = input.phone !== undefined
+    ? (input.phone.trim() || "")
+    : existingClient.phone;
+  const finalStreet = input.street !== undefined
+    ? (input.street.trim() || "")
+    : existingClient.street;
+  const finalPostalCode = input.postalCode !== undefined
+    ? (input.postalCode.trim() || "")
+    : existingClient.postalCode;
+  const finalCity = input.city !== undefined
+    ? (input.city.trim() || "")
+    : existingClient.city;
 
   // Récupérer les propriétés existantes
   const existingProperties = await prisma.property.findMany({
